@@ -6,7 +6,7 @@ rem ============================================
 cd /d "%~dp0"
 
 echo [1/3] Backend starting...
-start "invest-backend" cmd /k "cd /d %~dp0 && python -m uvicorn backend.main:app --port 8000"
+start "invest-backend" cmd /k "cd /d %~dp0 && python -m uvicorn backend.main:app --port 8000 --reload"
 
 echo [2/3] Frontend starting...
 start "invest-frontend" cmd /k "cd /d %~dp0frontend && npm run dev"
