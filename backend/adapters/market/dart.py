@@ -13,6 +13,15 @@ logger = logging.getLogger(__name__)
 
 BASE = "https://opendart.fss.or.kr/api"
 _ACCOUNTS = {"매출액": "revenue", "영업이익": "operating_profit", "당기순이익": "net_income"}
+
+
+def _match_account(account_nm: str) -> str | None:
+    """계정명 변형 흡수: '당기순이익(손실)', '영업이익(손실)', 공백 등."""
+    name = account_nm.strip().replace(" ", "")
+    for key, field in _ACCOUNTS.items():
+        if name == key or name.startswith(key + "("):
+            return field
+    return None
 _corp_cache: dict[str, str] | None = None  # stock_code → corp_code
 
 
@@ -73,7 +82,7 @@ class DartClient:
                 continue
             row = {"year": year}
             for item in body.get("list", []):
-                field = _ACCOUNTS.get(item.get("account_nm", "").strip())
+                field = _match_account(item.get("account_nm", ""))
                 if field and item.get("fs_div") == "CFS" and field not in row:
                     row[field] = int(str(item["thstrm_amount"]).replace(",", "") or 0)
             if len(row) > 1:
