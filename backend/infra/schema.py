@@ -27,7 +27,8 @@ class Holding(Base):
     account_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
     ticker: Mapped[str] = mapped_column(String(20))
     name: Mapped[str] = mapped_column(String(100))
-    market: Mapped[str] = mapped_column(String(20))            # KRX | NASDAQ | ...
+    market: Mapped[str] = mapped_column(String(20))            # KRX | OVERSEAS | ...
+    sector: Mapped[str] = mapped_column(String(50), default="")  # 산업 (파일 카테고리 초기값, FR-03-23)
     qty: Mapped[float] = mapped_column(Numeric(18, 6))       # 금액·수량은 Numeric (Codex 리뷰 반영)
     avg_price: Mapped[float] = mapped_column(Numeric(18, 4))
     buy_amount: Mapped[float] = mapped_column(Numeric(18, 2))

@@ -125,6 +125,15 @@ export const api = {
     if (!res.ok) throw new Error(`업로드 실패: ${res.status}`);
     return res.json() as Promise<{ parsed_preview: string }>;
   },
+  getAnalysis: () =>
+    req<{ by_type: { label: string; eval_amount: number; pct: number }[];
+          by_sector: { label: string; eval_amount: number; pct: number }[]; as_of: string }>(
+      "/api/portfolio/analysis"),
+  getReturns: () =>
+    req<{ returns: { period: string; portfolio_pct: number; benchmark_pct: number | null;
+                     excess_pct: number | null }[]; as_of: string | null }>("/api/portfolio/returns"),
+  getTrend: () =>
+    req<{ date: string; total_asset: number }[]>("/api/portfolio/trend"),
   getHoldings: () => req<PortfolioData>("/api/portfolio/holdings"),
   setCash: (amount: number) =>
     req<{ ok: boolean }>("/api/portfolio/cash", { method: "PUT", body: JSON.stringify({ amount }) }),

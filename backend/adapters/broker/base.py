@@ -19,6 +19,7 @@ class HoldingDTO:
     pnl_amount: Decimal
     pnl_pct: float
     market: str = "UNKNOWN"
+    sector: str = ""
 
 
 class BrokerAdapter(ABC):

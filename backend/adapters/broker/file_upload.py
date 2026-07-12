@@ -28,6 +28,7 @@ HEADER_CANDIDATES: dict[str, list[str]] = {
     "pnl_amount":  ["평가손익", "손익", "평가손익금액", "손익금액"],
     "pnl_pct":     ["수익률", "수익률(%)", "손익률", "수익율"],
     "region":      ["지역", "시장", "국가", "시장구분"],
+    "sector":      ["카테고리", "산업", "섹터", "업종"],
 }
 REQUIRED = {"name", "qty"}  # 최소 필수 — 나머지는 계산으로 보완
 
@@ -122,7 +123,8 @@ def parse_balance_file(path: str | Path, mapping: dict[str, str] | None = None) 
         holdings.append(HoldingDTO(name=name, ticker=ticker or name, qty=qty,
                                    avg_price=avg, buy_amount=buy, cur_price=cur,
                                    eval_amount=ev, pnl_amount=pnl, pnl_pct=pct,
-                                   market=market))
+                                   market=market,
+                                   sector=str(get("sector", "")).strip().replace("nan", "")))
     if not holdings:
         raise ParseError("파일에서 보유 종목을 찾지 못했습니다 — 컬럼 매핑을 확인해 주세요.")
     return holdings

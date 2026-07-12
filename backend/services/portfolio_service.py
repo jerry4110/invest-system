@@ -47,7 +47,7 @@ def import_balance_file(path: str | Path, account_alias: str = "미래에셋(파
         s.query(Holding).filter_by(account_id=account_id).delete()
         for h in holdings:
             s.add(Holding(account_id=account_id, ticker=h.ticker, name=h.name,
-                          market=h.market, qty=h.qty, avg_price=h.avg_price,
+                          market=h.market, sector=h.sector, qty=h.qty, avg_price=h.avg_price,
                           buy_amount=h.buy_amount, cur_price=h.cur_price,
                           eval_amount=h.eval_amount, pnl_amount=h.pnl_amount,
                           pnl_pct=h.pnl_pct, as_of=as_of))
@@ -129,7 +129,7 @@ def get_holdings() -> dict:
 
     holdings = [{
         "account": alias, "name": h.name, "ticker": h.ticker, "market": h.market,
-        "qty": float(h.qty), "avg_price": float(h.avg_price),
+        "sector": h.sector or "", "qty": float(h.qty), "avg_price": float(h.avg_price),
         "buy_amount": float(h.buy_amount), "cur_price": float(h.cur_price),
         "eval_amount": float(h.eval_amount), "pnl_amount": float(h.pnl_amount),
         "pnl_pct": h.pnl_pct,
@@ -234,3 +234,82 @@ def get_summary() -> dict:
         "day_change": day_change, "composition": composition,
         "as_of": d["as_of"] or datetime.now().isoformat(timespec="seconds"),
     }
+
+
+# ── T-29: 분류·기간 수익률·추이 (FR-03-21~28) ──
+
+ETF_BRANDS = ("KODEX", "TIGER", "ACE", "SOL", "PLUS", "RISE", "KBSTAR", "HANARO",
+              "ARIRANG", "KOSEF", "TIMEFOLIO", "TIME ", "히어로즈", "WOORI", "BNK")
+
+
+def _classify_type(name: str, market: str) -> str:
+    """FR-03-22: 투자유형 — ETF(브랜드명 휴리스틱) × 국내/해외."""
+    upper = name.upper()
+    is_etf = any(b in upper for b in ETF_BRANDS) or "ETF" in upper
+    region = "국내" if market == "KRX" else "해외"
+    return f"{region} {'ETF' if is_etf else '주식'}"
+
+
+def get_analysis() -> dict:
+    """유형·산업별 구성 (FR-03-21~23)."""
+    d = get_holdings()
+    by_type: dict[str, float] = {}
+    by_sector: dict[str, float] = {}
+    for h in d["holdings"]:
+        t = _classify_type(h["name"], h["market"])
+        by_type[t] = by_type.get(t, 0) + h["eval_amount"]
+        sec = h.get("sector") or "미분류"
+        by_sector[sec] = by_sector.get(sec, 0) + h["eval_amount"]
+    total = sum(by_type.values()) or 1
+    fmt = lambda d_: [{"label": k, "eval_amount": v, "pct": round(v / total * 100, 2)}
+                      for k, v in sorted(d_.items(), key=lambda x: -x[1])]
+    return {"by_type": fmt(by_type), "by_sector": fmt(by_sector), "as_of": d["as_of"]}
+
+
+def _nearest_value(rows: list, target_date) -> float | None:
+    """target_date 이하 중 가장 가까운 값."""
+    prev = [r for r in rows if r[0] <= target_date]
+    return prev[-1][1] if prev else None
+
+
+def get_period_returns() -> dict:
+    """기간별 수익률 + 코스피 벤치마크·초과수익 (FR-03-24~25)."""
+    from datetime import date, timedelta
+    from backend.infra.schema import AssetSnapshot, MarketIndicator
+
+    with get_session() as s:
+        snaps = [(r.date, float(r.total_asset)) for r in
+                 s.query(AssetSnapshot).order_by(AssetSnapshot.date).all()]
+        kospi = [(r.date, r.value) for r in
+                 s.query(MarketIndicator).filter_by(code="KOSPI")
+                 .order_by(MarketIndicator.date).all()]
+    if not snaps:
+        return {"returns": [], "as_of": None}
+    today = snaps[-1][0]
+    cur = snaps[-1][1]
+    cur_k = kospi[-1][1] if kospi else None
+
+    out = []
+    for label, days in (("1w", 7), ("1m", 30), ("3m", 90), ("1y", 365)):
+        base = _nearest_value(snaps, today - timedelta(days=days))
+        if base is None or base == 0:
+            continue
+        port = round((cur - base) / base * 100, 2)
+        bench = None
+        if cur_k and kospi:
+            base_k = _nearest_value(kospi, today - timedelta(days=days))
+            if base_k:
+                bench = round((cur_k - base_k) / base_k * 100, 2)
+        out.append({"period": label, "portfolio_pct": port, "benchmark_pct": bench,
+                    "excess_pct": round(port - bench, 2) if bench is not None else None})
+    return {"returns": out, "as_of": today.isoformat()}
+
+
+def get_trend() -> list[dict]:
+    """자산 추이 시계열 (FR-03-26)."""
+    from backend.infra.schema import AssetSnapshot
+    with get_session() as s:
+        rows = s.query(AssetSnapshot).order_by(AssetSnapshot.date).all()
+    return [{"date": r.date.isoformat(), "total_asset": float(r.total_asset),
+             "total_eval": float(r.total_eval), "total_cash": float(r.total_cash)}
+            for r in rows]

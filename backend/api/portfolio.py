@@ -72,3 +72,21 @@ def export_csv():
     csv_text = portfolio_service.export_csv()
     return Response(content="\ufeff" + csv_text, media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": "attachment; filename=portfolio.csv"})
+
+
+@router.get("/analysis")
+def analysis():
+    """유형·산업별 구성 (FR-03-21~23)."""
+    return portfolio_service.get_analysis()
+
+
+@router.get("/returns")
+def returns():
+    """기간 수익률·벤치마크 (FR-03-24~25)."""
+    return portfolio_service.get_period_returns()
+
+
+@router.get("/trend")
+def trend():
+    """자산 추이 (FR-03-26)."""
+    return portfolio_service.get_trend()

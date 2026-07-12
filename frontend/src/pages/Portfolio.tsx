@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, PortfolioData } from "../api/client";
+import Donut from "../components/Donut";
+import TrendChart from "../components/TrendChart";
 
 const won = (v: number) => v.toLocaleString("ko-KR", { maximumFractionDigits: 0 });
 const pnlColor = (v: number) => (v >= 0 ? "#dc2626" : "#2563eb");
@@ -10,9 +12,16 @@ export default function Portfolio() {
   const [data, setData] = useState<PortfolioData | null>(null);
   const [cashInput, setCashInput] = useState("");
   const [msg, setMsg] = useState("");
+  const [tab, setTab] = useState<"holdings" | "analysis">("holdings");
+  const [analysis, setAnalysis] = useState<Awaited<ReturnType<typeof api.getAnalysis>> | null>(null);
+  const [returnsData, setReturnsData] = useState<Awaited<ReturnType<typeof api.getReturns>> | null>(null);
+  const [trend, setTrend] = useState<{ date: string; total_asset: number }[]>([]);
 
   const load = useCallback(() => {
     api.getHoldings().then(setData).catch(() => setMsg("❌ 백엔드 연결 실패"));
+    api.getAnalysis().then(setAnalysis).catch(() => {});
+    api.getReturns().then(setReturnsData).catch(() => {});
+    api.getTrend().then(setTrend).catch(() => {});
   }, []);
   useEffect(load, [load]);
 
@@ -56,6 +65,55 @@ export default function Portfolio() {
         )}
       </div>
       {msg && <p style={{ fontSize: 13 }}>{msg}</p>}
+
+      <div style={{ display: "flex", gap: 4, margin: "10px 0" }}>
+        {[["holdings", "보유현황"], ["analysis", "분석"]].map(([k, label]) => (
+          <button key={k} onClick={() => setTab(k as "holdings" | "analysis")}
+            style={{ padding: "6px 18px", borderRadius: 6, border: "1px solid #ddd",
+              background: tab === k ? "#2563eb" : "#fff", color: tab === k ? "#fff" : "#333" }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "analysis" && (
+        <div>
+          <div style={{ display: "flex", gap: 32, flexWrap: "wrap", marginBottom: 16 }}>
+            {analysis && analysis.by_type.length > 0 && (
+              <div><h3>투자유형별</h3><Donut parts={analysis.by_type} /></div>
+            )}
+            {analysis && analysis.by_sector.length > 0 && (
+              <div><h3>산업별</h3><Donut parts={analysis.by_sector.slice(0, 6)} /></div>
+            )}
+          </div>
+          <h3>기간별 수익률 (vs 코스피)</h3>
+          {returnsData && returnsData.returns.length > 0 ? (
+            <table style={{ borderCollapse: "collapse", fontSize: 14, marginBottom: 16 }}>
+              <thead><tr style={{ background: "#f8fafc" }}>
+                {["기간", "내 수익률", "코스피", "초과수익"].map((hh) => (
+                  <th key={hh} style={{ padding: "6px 16px", borderBottom: "1px solid #eee" }}>{hh}</th>))}
+              </tr></thead>
+              <tbody>
+                {returnsData.returns.map((r) => (
+                  <tr key={r.period}>
+                    <td style={{ padding: "6px 16px" }}>{{ "1w": "1주", "1m": "1개월", "3m": "3개월", "1y": "1년" }[r.period]}</td>
+                    <td style={{ padding: "6px 16px", color: r.portfolio_pct >= 0 ? "#dc2626" : "#2563eb" }}>
+                      {r.portfolio_pct >= 0 ? "+" : ""}{r.portfolio_pct}%</td>
+                    <td style={{ padding: "6px 16px" }}>{r.benchmark_pct != null ? `${r.benchmark_pct >= 0 ? "+" : ""}${r.benchmark_pct}%` : "-"}</td>
+                    <td style={{ padding: "6px 16px", fontWeight: 600,
+                      color: (r.excess_pct ?? 0) >= 0 ? "#dc2626" : "#2563eb" }}>
+                      {r.excess_pct != null ? `${r.excess_pct >= 0 ? "+" : ""}${r.excess_pct}%p` : "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : <p style={{ color: "#888", fontSize: 13 }}>스냅샷이 쌓이면 기간 수익률이 표시됩니다.</p>}
+          <h3>자산 추이</h3>
+          <TrendChart data={trend} />
+        </div>
+      )}
+
+      {tab === "holdings" && <div>
 
       <div style={{ display: "flex", gap: 16, margin: "12px 0", flexWrap: "wrap" }}>
         {[["총자산", totals.total_asset], ["평가금액", totals.eval_amount],
@@ -112,6 +170,7 @@ export default function Portfolio() {
           placeholder="예: 3000000" style={{ padding: 6, width: 140 }} />
         <button onClick={saveCash}>저장</button>
       </div>
+      </div>}
     </section>
   );
 }
