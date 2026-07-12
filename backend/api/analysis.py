@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException
 
 from backend.services import analysis_service, financials_service, news_service
+from backend.services.llm_service import BudgetExceeded
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
@@ -46,3 +47,42 @@ def technical(ticker: str):
 def news(ticker: str, name: str = ""):
     """분석 C: 뉴스·공시·컨센서스 (FR-04-21~24)."""
     return news_service.analyze_news(ticker, name)
+
+
+@router.post("/comprehensive/{ticker}")
+def comprehensive(ticker: str):
+    """종합 판단 (FR-04-31~34) — LLM 사용, 비용 가드 적용."""
+    try:
+        return analysis_service.comprehensive(ticker)
+    except BudgetExceeded as e:
+        raise HTTPException(429, str(e))
+    except (RuntimeError, ValueError) as e:
+        raise HTTPException(422, str(e))
+
+
+@router.post("/debate/{ticker}")
+def debate(ticker: str):
+    """AI 토론 Bull/Bear (FR-04-35)."""
+    try:
+        return analysis_service.debate(ticker)
+    except BudgetExceeded as e:
+        raise HTTPException(429, str(e))
+    except (RuntimeError, ValueError) as e:
+        raise HTTPException(422, str(e))
+
+
+@router.post("/deepresearch/{ticker}")
+def deepresearch(ticker: str):
+    """딥리서치 (FR-04-42~43)."""
+    try:
+        return analysis_service.deep_research(ticker)
+    except BudgetExceeded as e:
+        raise HTTPException(429, str(e))
+    except (RuntimeError, ValueError) as e:
+        raise HTTPException(422, str(e))
+
+
+@router.get("/history/{ticker}")
+def history(ticker: str):
+    """분석 이력 (FR-04-37)."""
+    return analysis_service.get_history(ticker)

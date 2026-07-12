@@ -142,3 +142,14 @@ class LlmUsage(Base):
     input_tokens: Mapped[int] = mapped_column(Integer)
     output_tokens: Mapped[int] = mapped_column(Integer)
     cost_usd: Mapped[float] = mapped_column(Float)
+
+
+class AnalysisResult(Base):
+    """종목분석 이력 (FR-04-37) — 과거 분석과 비교용."""
+    __tablename__ = "analysis_result"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ticker: Mapped[str] = mapped_column(String(20), index=True)
+    kind: Mapped[str] = mapped_column(String(20))   # comprehensive | debate | deep
+    base_date: Mapped[str] = mapped_column(String(10))
+    content_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)

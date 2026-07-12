@@ -17,6 +17,14 @@ interface TechResult {
   notes: string[];
 }
 
+interface Judgment {
+  fair_value_current?: number | null; fair_value_future?: number | null;
+  recommendation: string | null; plan?: string | null;
+  assumptions?: string[] | null; rationale?: string | null;
+  narrative?: string | null; price?: number | null; as_of: string; disclaimer: string;
+}
+interface Debate { bull: string; bear: string; conclusion: string; as_of: string }
+
 interface NewsResult {
   ticker: string; as_of: string; disclaimer: string;
   disclosures: { title: string; link: string; date: string; filer?: string }[];
@@ -44,7 +52,11 @@ export default function Analysis() {
   const [peers, setPeers] = useState("");
   const [results, setResults] = useState<FundResult[]>([]);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"fund" | "tech" | "news">("fund");
+  const [tab, setTab] = useState<"fund" | "tech" | "news" | "ai">("fund");
+  const [judgment, setJudgment] = useState<Judgment | null>(null);
+  const [debate, setDebate] = useState<Debate | null>(null);
+  const [deep, setDeep] = useState<string | null>(null);
+  const [aiBusy, setAiBusy] = useState("");
   const [tech, setTech] = useState<TechResult | null>(null);
   const [newsData, setNewsData] = useState<NewsResult | null>(null);
   const [msg, setMsg] = useState("");
@@ -98,7 +110,7 @@ export default function Analysis() {
 
       {(main || tech) && (
         <div style={{ display: "flex", gap: 4, margin: "8px 0" }}>
-          {[["fund", "기초(재무) 분석"], ["tech", "기술적 분석"], ["news", "뉴스·공시"]].map(([k, label]) => (
+          {[["fund", "기초(재무) 분석"], ["tech", "기술적 분석"], ["news", "뉴스·공시"], ["ai", "종합·AI 토론"]].map(([k, label]) => (
             <button key={k} onClick={() => setTab(k as "fund" | "tech")}
               style={{ padding: "6px 18px", borderRadius: 6, border: "1px solid #ddd",
                 background: tab === k ? "#2563eb" : "#fff", color: tab === k ? "#fff" : "#333" }}>
@@ -107,6 +119,81 @@ export default function Analysis() {
           ))}
         </div>
       )}
+
+      {tab === "ai" && (main || tech) && (() => {
+        const t = ticker.trim();
+        const call = async (path: string, after: (b: unknown) => void, label: string) => {
+          setAiBusy(label);
+          try {
+            const res = await fetch(`/api/analysis/${path}/${encodeURIComponent(t)}`, { method: "POST" });
+            const body = await res.json();
+            if (!res.ok) throw new Error(body.detail);
+            after(body);
+          } catch (e) { setMsg(`❌ ${e instanceof Error ? e.message : "실패"}`); }
+          finally { setAiBusy(""); }
+        };
+        return (
+          <>
+            <p style={{ fontSize: 13, color: "#888" }}>
+              아래 기능은 OpenAI API를 호출합니다 (월 상한 내, 설정에서 사용량 확인).
+            </p>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <button disabled={!!aiBusy} onClick={() => call("comprehensive", (b) => setJudgment(b as Judgment), "종합 판단")}>
+                {aiBusy === "종합 판단" ? "분석 중…" : "🎯 종합 판단"}</button>
+              <button disabled={!!aiBusy} onClick={() => call("debate", (b) => setDebate(b as Debate), "AI 토론")}>
+                {aiBusy === "AI 토론" ? "토론 중…" : "🗣️ AI 토론 (Bull vs Bear)"}</button>
+              <button disabled={!!aiBusy} onClick={() => call("deepresearch", (b) => setDeep((b as { content: string }).content), "딥리서치")}>
+                {aiBusy === "딥리서치" ? "리서치 중…" : "🔬 딥리서치"}</button>
+            </div>
+            {judgment && (
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                {judgment.recommendation ? (
+                  <>
+                    <span style={{ padding: "4px 16px", borderRadius: 20, fontWeight: 700, color: "#fff",
+                      background: judgment.recommendation === "매수" ? "#dc2626"
+                        : judgment.recommendation === "매도" ? "#2563eb" : "#64748b" }}>
+                      {judgment.recommendation}
+                    </span>
+                    <p style={{ fontSize: 14 }}>
+                      적정가(현재) <b>{judgment.fair_value_current?.toLocaleString() ?? "-"}</b> ·
+                      적정가(12개월) <b>{judgment.fair_value_future?.toLocaleString() ?? "-"}</b>
+                      {judgment.price != null && <> · 현재가 {judgment.price.toLocaleString()}</>}
+                    </p>
+                    {judgment.plan && <p style={{ fontSize: 14 }}>📋 <b>투자 방안</b>: {judgment.plan}</p>}
+                    {judgment.rationale && <p style={{ fontSize: 13, color: "#555" }}>{judgment.rationale}</p>}
+                    {judgment.assumptions && judgment.assumptions.length > 0 && (
+                      <p style={{ fontSize: 12, color: "#888" }}>가정: {judgment.assumptions.join(" / ")}</p>
+                    )}
+                  </>
+                ) : <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>{judgment.narrative}</pre>}
+                <p style={{ fontSize: 12, color: "#888" }}>{judgment.disclaimer}</p>
+              </div>
+            )}
+            {debate && (
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+                <div style={{ flex: 1, minWidth: 260, border: "2px solid #dc2626", borderRadius: 10, padding: 12 }}>
+                  <b style={{ color: "#dc2626" }}>🐂 강세론</b>
+                  <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>{debate.bull}</pre>
+                </div>
+                <div style={{ flex: 1, minWidth: 260, border: "2px solid #2563eb", borderRadius: 10, padding: 12 }}>
+                  <b style={{ color: "#2563eb" }}>🐻 약세론</b>
+                  <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>{debate.bear}</pre>
+                </div>
+                <div style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 10, padding: 12 }}>
+                  <b>⚖️ 중재 결론</b>
+                  <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>{debate.conclusion}</pre>
+                </div>
+              </div>
+            )}
+            {deep && (
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14 }}>
+                <b>🔬 딥리서치</b>
+                <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>{deep}</pre>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {tab === "news" && newsData && (
         <>

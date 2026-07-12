@@ -6,7 +6,7 @@ from backend.infra.schema import Base
 EXPECTED_TABLES = {
     "account", "holding", "cash_balance", "asset_snapshot",
     "market_indicator", "strategy", "strategy_file", "target_allocation",
-    "app_setting", "secret_store", "job_log", "transaction", "llm_usage",
+    "app_setting", "secret_store", "job_log", "transaction", "llm_usage", "analysis_result",
 }
 
 
