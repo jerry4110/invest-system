@@ -8,7 +8,7 @@ Phase 1 — T-01 골격. 상세: `../PRD_Phase1.md`, 개발 원칙: `../config/c
 ## 최초 설치
 ```bash
 # 백엔드 (invest-system/ 에서)
-pip install fastapi uvicorn sqlalchemy pydantic pyyaml pytest httpx
+pip install fastapi uvicorn sqlalchemy pydantic pyyaml pytest httpx cryptography keyring yfinance pandas
 
 # 프론트엔드
 cd frontend && npm install
