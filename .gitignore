@@ -11,3 +11,4 @@ data/logs/
 data/backup/
 # 환경
 .env
+reviews/
