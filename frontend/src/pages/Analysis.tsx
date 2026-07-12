@@ -144,6 +144,16 @@ export default function Analysis() {
                 {aiBusy === "AI 토론" ? "토론 중…" : "🗣️ AI 토론 (Bull vs Bear)"}</button>
               <button disabled={!!aiBusy} onClick={() => call("deepresearch", (b) => setDeep((b as { content: string }).content), "딥리서치")}>
                 {aiBusy === "딥리서치" ? "리서치 중…" : "🔬 딥리서치"}</button>
+              <button disabled={!!aiBusy} onClick={async () => {
+                setAiBusy("리포트");
+                try {
+                  const res = await fetch(`/api/reports/stock/${encodeURIComponent(t)}`, { method: "POST" });
+                  const body = await res.json();
+                  if (!res.ok) throw new Error(body.detail);
+                  setMsg(`📄 리포트 생성됨 — 리포트 보관함에서 다운로드하세요 (${body.relpath})`);
+                } catch (e) { setMsg(`❌ ${e instanceof Error ? e.message : "리포트 실패"}`); }
+                finally { setAiBusy(""); }
+              }}>{aiBusy === "리포트" ? "생성 중…" : "📄 Word 리포트 생성"}</button>
             </div>
             {judgment && (
               <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, marginBottom: 12 }}>

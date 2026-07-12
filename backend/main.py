@@ -7,10 +7,11 @@ from backend.api.analysis import router as analysis_router
 from backend.api.dashboard import router as dashboard_router
 from backend.api.journal import router as journal_router
 from backend.api.portfolio import router as portfolio_router
+from backend.api.reports import router as reports_router
 from backend.api.settings import router as settings_router
 from backend.api.strategy import router as strategy_router
 
-APP_VERSION = "0.8.0"  # Phase 2 / T-22
+APP_VERSION = "0.9.0"  # Phase 2 / T-27
 
 
 def create_app() -> FastAPI:
@@ -21,6 +22,7 @@ def create_app() -> FastAPI:
     app.include_router(strategy_router)
     app.include_router(journal_router)
     app.include_router(analysis_router)
+    app.include_router(reports_router)
 
     @app.on_event("startup")
     def _start_background():

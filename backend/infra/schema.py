@@ -153,3 +153,14 @@ class AnalysisResult(Base):
     base_date: Mapped[str] = mapped_column(String(10))
     content_json: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
+class Report(Base):
+    """생성 리포트 보관함 (FR-09-03)."""
+    __tablename__ = "report"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ticker: Mapped[str] = mapped_column(String(20), index=True)
+    kind: Mapped[str] = mapped_column(String(20))   # stock | rebalance(Phase 3)
+    filename: Mapped[str] = mapped_column(String(255))
+    relpath: Mapped[str] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)

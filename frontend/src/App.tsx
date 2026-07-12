@@ -5,6 +5,7 @@ import Strategy from "./pages/Strategy";
 import Settings from "./pages/Settings";
 import Journal from "./pages/Journal";
 import Analysis from "./pages/Analysis";
+import Reports from "./pages/Reports";
 
 const navStyle = ({ isActive }: { isActive: boolean }) => ({
   padding: "8px 14px",
@@ -24,6 +25,7 @@ export default function App() {
         <NavLink to="/strategy" style={navStyle}>🎯 투자전략</NavLink>
         <NavLink to="/analysis" style={navStyle}>🔍 종목분석</NavLink>
         <NavLink to="/journal" style={navStyle}>📓 투자저널</NavLink>
+        <NavLink to="/reports" style={navStyle}>📄 리포트</NavLink>
         <NavLink to="/settings" style={navStyle}>⚙️ 설정</NavLink>
       </header>
       <Routes>
@@ -32,6 +34,7 @@ export default function App() {
         <Route path="/strategy" element={<Strategy />} />
         <Route path="/analysis" element={<Analysis />} />
         <Route path="/journal" element={<Journal />} />
+        <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Settings />} />
       </Routes>
     </div>
