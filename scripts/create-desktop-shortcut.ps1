@@ -1,4 +1,4 @@
-# 바탕화면 바로가기 생성 (1회 실행): .\scripts\create-desktop-shortcut.ps1
+﻿# 바탕화면 바로가기 생성 (1회 실행): .\scripts\create-desktop-shortcut.ps1
 $root = Split-Path -Parent $PSScriptRoot
 $desktop = [Environment]::GetFolderPath("Desktop")
 $ws = New-Object -ComObject WScript.Shell
