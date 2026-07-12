@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+# Node
+node_modules/
+frontend/dist/
+# 데이터·로그 (민감정보 포함 가능 — 커밋 금지, constitution §2.5)
+data/*.db
+data/logs/
+data/backup/
+# 환경
+.env
