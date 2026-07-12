@@ -17,6 +17,15 @@ interface TechResult {
   notes: string[];
 }
 
+interface NewsResult {
+  ticker: string; as_of: string; disclaimer: string;
+  disclosures: { title: string; link: string; date: string; filer?: string }[];
+  news: { title: string; link: string; source: string; date: string;
+          sentiment?: string | null; importance?: string | null; summary?: string | null }[];
+  consensus: { target_price: number; analysts: number; recommendation: string } | null;
+  notes: string[];
+}
+
 interface FundResult {
   ticker: string; source: string; base_date: string;
   financials: { year: number; revenue?: number; operating_profit?: number; net_income?: number }[];
@@ -35,8 +44,9 @@ export default function Analysis() {
   const [peers, setPeers] = useState("");
   const [results, setResults] = useState<FundResult[]>([]);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"fund" | "tech">("fund");
+  const [tab, setTab] = useState<"fund" | "tech" | "news">("fund");
   const [tech, setTech] = useState<TechResult | null>(null);
+  const [newsData, setNewsData] = useState<NewsResult | null>(null);
   const [msg, setMsg] = useState("");
 
   const run = async () => {
@@ -56,11 +66,15 @@ export default function Analysis() {
         if (!res.ok) throw new Error((await res.json()).detail);
         setResults([await res.json()]);
       }
-      // 기술적 분석 (대상 종목만)
+      // 기술적 분석·뉴스 (대상 종목만)
       try {
         const tr = await fetch(`/api/analysis/technical/${encodeURIComponent(ticker.trim())}`);
         setTech(tr.ok ? await tr.json() : null);
       } catch { setTech(null); }
+      try {
+        const nr = await fetch(`/api/analysis/news/${encodeURIComponent(ticker.trim())}`);
+        setNewsData(nr.ok ? await nr.json() : null);
+      } catch { setNewsData(null); }
     } catch (e) { setMsg(`❌ ${e instanceof Error ? e.message : "분석 실패"}`); }
     finally { setBusy(false); }
   };
@@ -84,7 +98,7 @@ export default function Analysis() {
 
       {(main || tech) && (
         <div style={{ display: "flex", gap: 4, margin: "8px 0" }}>
-          {[["fund", "기초(재무) 분석"], ["tech", "기술적 분석"]].map(([k, label]) => (
+          {[["fund", "기초(재무) 분석"], ["tech", "기술적 분석"], ["news", "뉴스·공시"]].map(([k, label]) => (
             <button key={k} onClick={() => setTab(k as "fund" | "tech")}
               style={{ padding: "6px 18px", borderRadius: 6, border: "1px solid #ddd",
                 background: tab === k ? "#2563eb" : "#fff", color: tab === k ? "#fff" : "#333" }}>
@@ -92,6 +106,46 @@ export default function Analysis() {
             </button>
           ))}
         </div>
+      )}
+
+      {tab === "news" && newsData && (
+        <>
+          {newsData.consensus && (
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 14 }}>
+              🎯 <b>애널리스트 컨센서스</b> — 평균 목표가{" "}
+              <b>{newsData.consensus.target_price.toLocaleString()}</b>
+              {" "}(의견 {newsData.consensus.analysts}건, {newsData.consensus.recommendation})
+              <span style={{ color: "#888", fontSize: 12 }}> · 출처: Yahoo Finance 집계</span>
+            </div>
+          )}
+          {newsData.disclosures.length > 0 && <>
+            <h3>📢 최근 공시 (30일, 출처: DART)</h3>
+            <ul style={{ fontSize: 14 }}>
+              {newsData.disclosures.slice(0, 8).map((d) => (
+                <li key={d.link}><a href={d.link} target="_blank" rel="noreferrer">{d.title}</a>
+                  <span style={{ color: "#888", fontSize: 12 }}> {d.date}</span></li>
+              ))}
+            </ul>
+          </>}
+          <h3>📰 뉴스</h3>
+          <ul style={{ fontSize: 14 }}>
+            {newsData.news.map((n) => (
+              <li key={n.link} style={{ marginBottom: 4 }}>
+                {n.sentiment && (
+                  <span style={{
+                    fontSize: 12, padding: "1px 8px", borderRadius: 10, marginRight: 6, color: "#fff",
+                    background: n.sentiment === "호재" ? "#dc2626" : n.sentiment === "악재" ? "#2563eb" : "#64748b",
+                  }}>{n.sentiment}{n.importance === "상" && " ★"}</span>
+                )}
+                <a href={n.link} target="_blank" rel="noreferrer">{n.title}</a>
+                <span style={{ color: "#888", fontSize: 12 }}> — {n.source} {n.date}</span>
+                {n.summary && <span style={{ color: "#666", fontSize: 12 }}> · {n.summary}</span>}
+              </li>
+            ))}
+          </ul>
+          {newsData.notes.map((n, i) => <p key={i} style={{ fontSize: 12, color: "#d97706" }}>ℹ️ {n}</p>)}
+          <p style={{ fontSize: 12, color: "#888" }}>{newsData.disclaimer}</p>
+        </>
       )}
 
       {tab === "tech" && tech && (
@@ -196,8 +250,8 @@ export default function Analysis() {
           </p>
         </>
       )}
-      {!main && !tech && !busy && (
-        <p style={{ color: "#666" }}>종목코드를 입력하고 분석을 실행하세요. 뉴스(C)·AI 토론·딥리서치는 다음 업데이트에서 추가됩니다.</p>
+      {!main && !tech && !newsData && !busy && (
+        <p style={{ color: "#666" }}>종목코드를 입력하고 분석을 실행하세요. 종합 판단·AI 토론·딥리서치는 다음 업데이트에서 추가됩니다.</p>
       )}
     </section>
   );

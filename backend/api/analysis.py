@@ -1,7 +1,7 @@
 """종목분석 API (M4) — T-22: 재무 조회부터 시작, T-23~26에서 확장."""
 from fastapi import APIRouter, HTTPException
 
-from backend.services import analysis_service, financials_service
+from backend.services import analysis_service, financials_service, news_service
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
@@ -40,3 +40,9 @@ def technical(ticker: str):
         return analysis_service.analyze_technical(ticker)
     except (RuntimeError, ValueError) as e:
         raise HTTPException(422, str(e))
+
+
+@router.get("/news/{ticker}")
+def news(ticker: str, name: str = ""):
+    """분석 C: 뉴스·공시·컨센서스 (FR-04-21~24)."""
+    return news_service.analyze_news(ticker, name)

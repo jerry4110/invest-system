@@ -93,3 +93,33 @@ class DartClient:
         if not out:
             raise RuntimeError(f"DART 재무 데이터를 가져오지 못했습니다 — {last_err or '응답 없음'}")
         return out
+
+
+    def get_disclosures(self, stock_code: str, days: int = 30) -> list[dict]:
+        """최근 공시 목록 (FR-04-21) — DART 뷰어 링크 포함."""
+        import json
+        from datetime import date, timedelta
+
+        corp = self._corp_map().get(stock_code)
+        if not corp:
+            raise ValueError(f"DART에서 종목코드 {stock_code}를 찾지 못했습니다")
+        end = date.today()
+        start = end - timedelta(days=days)
+        url = (f"{BASE}/list.json?crtfc_key={self._key()}&corp_code={corp}"
+               f"&bgn_de={start.strftime('%Y%m%d')}&end_de={end.strftime('%Y%m%d')}"
+               f"&page_count=50")
+        body = json.loads(self._fetch(url))
+        if body.get("status") != "000":
+            if body.get("status") == "013":   # 조회 결과 없음
+                return []
+            raise RuntimeError(f"DART 공시 조회 실패: {body.get('message')}")
+        out = []
+        for it in body.get("list", []):
+            d = it.get("rcept_dt", "")
+            out.append({
+                "title": it.get("report_nm", "").strip(),
+                "link": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={it.get('rcept_no')}",
+                "date": f"{d[:4]}-{d[4:6]}-{d[6:]}" if len(d) == 8 else d,
+                "filer": it.get("flr_nm", ""),
+            })
+        return out
