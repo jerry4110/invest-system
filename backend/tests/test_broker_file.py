@@ -119,3 +119,58 @@ def test_upload_and_column_map_api(session, tmp_path):
     r = client.post("/api/portfolio/upload",
                     files={"file": ("bad.csv", b"x,y\n1,2\n", "text/csv")})
     assert r.status_code == 422 and "컬럼" in r.json()["detail"]
+
+
+# ── 실제 미래에셋 '나의투자현황' 양식 회귀 테스트 (DoD 3 디버깅, 2026-07-12) ──
+CSV_MIRAE_REAL = """종목코드,종목명,카테고리,지역,보유수량,평균매입가,현재가,매입금액,평가금액,평가손익,수익률
+487340,ACE 머니마켓액티브,기타,국내,300,"104,410","104,790","31,323,000","31,437,000","114,000",0.36%
+0091P0,TIGER 코리아원자력,전력,국내,536,"13,405","24,400","7,185,080","13,078,400","5,893,320",82.02%
+446770,ACE 글로벌반도체TOP4,반도체,기타,177,"41,897","86,130","7,415,769","15,245,010","7,829,241",105.58%
+"""
+
+
+def test_mirae_real_format_pct_and_region(tmp_path):
+    """수익률 % 기호·비율 스케일 정규화 + 지역 컬럼 기반 시장 분류."""
+    holdings = parse_balance_file(_w(tmp_path, "나의투자현황_잔고.csv", CSV_MIRAE_REAL))
+    assert len(holdings) == 3
+    by = {h.ticker: h for h in holdings}
+    assert round(by["487340"].pnl_pct, 2) == 0.36
+    assert round(by["446770"].pnl_pct, 2) == 105.58
+    # 영숫자 코드 0091P0 — 지역='국내'이므로 KRX (기존 버그: OVERSEAS 오분류)
+    assert by["0091P0"].market == "KRX"
+    assert by["446770"].market == "OVERSEAS"   # 지역='기타'
+
+
+def test_ratio_scale_pct_normalized(tmp_path):
+    """XLSX처럼 수익률이 비율(0.0036)로 온 경우 0.36%로 정규화."""
+    csv = """종목명,종목코드,보유수량,매입금액,평가손익,수익률
+테스트,005930,10,1000000,3600,0.0036
+"""
+    h = parse_balance_file(_w(tmp_path, "잔고r.csv", csv))[0]
+    assert round(h.pnl_pct, 2) == 0.36
+
+
+def test_force_rescan_reprocesses(session, tmp_path):
+    """실패로 '처리됨' 마킹된 파일도 force 스캔이면 재처리 (DoD 3 이슈)."""
+    from backend.services import portfolio_service
+    from backend.infra.schema import Holding
+
+    watch = tmp_path / "dl"; watch.mkdir()
+    _w(watch, "잔고.csv", CSV_STANDARD)
+    assert portfolio_service.scan_watch_folder(str(watch)) == 1
+    assert portfolio_service.scan_watch_folder(str(watch)) == 0        # 중복 방지 유지
+    assert portfolio_service.scan_watch_folder(str(watch), force=True) == 1  # 강제 재처리
+
+
+def test_scan_returns_detail_for_diagnosis(session, tmp_path):
+    """스캔 상세 보고 — 사용자가 인식 실패 원인을 알 수 있어야 한다."""
+    from backend.services import portfolio_service
+
+    watch = tmp_path / "dl"; watch.mkdir()
+    _w(watch, "잔고_ok.csv", CSV_STANDARD)
+    _w(watch, "잔고_bad.csv", "이상한,파일\n1,2\n")
+    _w(watch, "관계없는파일.csv", "a,b\n1,2\n")
+    detail = portfolio_service.scan_watch_folder_detail(str(watch))
+    assert detail["imported"] == 1
+    assert any("잔고_bad" in f["file"] and f["status"] == "failed" for f in detail["files"])
+    assert not any("관계없는" in f["file"] for f in detail["files"])   # 패턴 불일치는 제외
