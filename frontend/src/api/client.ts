@@ -42,6 +42,14 @@ export interface PortfolioData {
   as_of: string | null;
 }
 
+export interface AssetSummary {
+  total_asset: number; total_buy: number; total_eval: number;
+  total_pnl: number; total_pnl_pct: number; total_cash: number;
+  day_change: { amount: number; pct: number; vs_date: string } | null;
+  composition: { label: string; amount: number; pct: number }[];
+  as_of: string;
+}
+
 export interface SecretItem {
   key: string;
   masked: string;
@@ -58,6 +66,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => req<HealthResponse>("/api/health"),
+  getSummary: () => req<AssetSummary>("/api/dashboard/summary"),
   getIndicators: () => req<Indicator[]>("/api/dashboard/indicators"),
   refreshIndicators: () => req<RefreshResult>("/api/dashboard/refresh", { method: "POST" }),
   getSettings: () => req<Settings>("/api/settings"),

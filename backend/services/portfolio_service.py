@@ -53,6 +53,7 @@ def import_balance_file(path: str | Path, account_alias: str = "미래에셋(파
                           pnl_pct=h.pnl_pct, as_of=as_of))
         s.commit()
     logger.info("잔고 파일 임포트: %s (%d종목, 기준 %s)", path.name, len(holdings), as_of)
+    save_snapshot()  # 전일 대비 기반 (FR-02-02)
     return len(holdings)
 
 
@@ -144,6 +145,7 @@ def set_cash(amount: float, account_alias: str = "미래에셋(파일)") -> None
         s.add(CashBalance(account_id=account_id, currency="KRW",
                           amount=amount, as_of=datetime.now()))
         s.commit()
+    save_snapshot()
 
 
 def export_csv() -> str:
@@ -162,3 +164,59 @@ def export_csv() -> str:
     w.writerow(["합계", "", "", "", "", "", t["buy_amount"], "", t["eval_amount"],
                 t["pnl_amount"], t["pnl_pct"], 100.0, data["as_of"] or ""])
     return buf.getvalue()
+
+
+def save_snapshot() -> None:
+    """오늘 자산 스냅샷 업서트 (FR-02-02 전일 대비의 기반). 잔고·예수금 변경 시 호출."""
+    from datetime import date
+    from backend.infra.schema import AssetSnapshot
+
+    d = get_holdings()
+    t = d["totals"]
+    with get_session() as s:
+        row = s.query(AssetSnapshot).filter_by(date=date.today()).first()
+        if row is None:
+            row = AssetSnapshot(date=date.today(), total_asset=0, total_buy=0,
+                                total_eval=0, total_pnl=0, total_cash=0)
+            s.add(row)
+        row.total_asset, row.total_buy = t["total_asset"], t["buy_amount"]
+        row.total_eval, row.total_pnl = t["eval_amount"], t["pnl_amount"]
+        row.total_cash, row.as_of = t["cash"], datetime.now()
+        s.commit()
+
+
+def get_summary() -> dict:
+    """대시보드 자산 요약 (FR-02-01~03)."""
+    from datetime import date, timedelta
+    from backend.infra.schema import AssetSnapshot
+
+    d = get_holdings()
+    t = d["totals"]
+
+    day_change = None
+    with get_session() as s:
+        prev = (s.query(AssetSnapshot)
+                .filter(AssetSnapshot.date < date.today())
+                .order_by(AssetSnapshot.date.desc()).first())
+    if prev and float(prev.total_asset):
+        diff = t["total_asset"] - float(prev.total_asset)
+        day_change = {"amount": diff,
+                      "pct": round(diff / float(prev.total_asset) * 100, 2),
+                      "vs_date": prev.date.isoformat()}
+
+    domestic = sum(h["eval_amount"] for h in d["holdings"] if h["market"] == "KRX")
+    overseas = sum(h["eval_amount"] for h in d["holdings"] if h["market"] != "KRX")
+    total = t["total_asset"]
+    composition = []
+    for label, v in (("국내주식", domestic), ("해외주식", overseas), ("현금", t["cash"])):
+        if total:
+            composition.append({"label": label, "amount": v,
+                                "pct": round(v / total * 100, 2)})
+
+    return {
+        "total_asset": t["total_asset"], "total_buy": t["buy_amount"],
+        "total_eval": t["eval_amount"], "total_pnl": t["pnl_amount"],
+        "total_pnl_pct": t["pnl_pct"], "total_cash": t["cash"],
+        "day_change": day_change, "composition": composition,
+        "as_of": d["as_of"] or datetime.now().isoformat(timespec="seconds"),
+    }

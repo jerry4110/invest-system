@@ -1,7 +1,7 @@
 """대시보드 API (F-02) — 지표 조회·수동 갱신."""
 from fastapi import APIRouter
 
-from backend.services import market_service
+from backend.services import market_service, portfolio_service
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -16,3 +16,9 @@ def get_indicators():
 def refresh():
     """수동 갱신 (FR-02-22). 일부 실패 시에도 200 + failed 목록 (FR-00-08)."""
     return market_service.collect_all()
+
+
+@router.get("/summary")
+def summary():
+    """자산 요약·전일 대비·구성비 (FR-02-01~03)."""
+    return portfolio_service.get_summary()
