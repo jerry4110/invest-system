@@ -1,5 +1,6 @@
 """T-02 수용 기준: 암호화 왕복, 암호문≠평문, 마스터 키 없이 복호화 불가."""
 import pytest
+from cryptography.fernet import InvalidToken
 
 from backend.infra.crypto import CryptoBox
 
@@ -22,5 +23,5 @@ def test_master_key_persists(tmp_path):
 def test_wrong_key_fails(tmp_path):
     token = CryptoBox(key_file=tmp_path / "a.key").encrypt("value-2")
     other = CryptoBox(key_file=tmp_path / "b.key")
-    with pytest.raises(Exception):
+    with pytest.raises(InvalidToken):
         other.decrypt(token)

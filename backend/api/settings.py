@@ -1,5 +1,7 @@
 """설정 API (F-10)."""
-from fastapi import APIRouter
+import re
+
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.services import settings_service as svc
@@ -24,6 +26,10 @@ def get_settings():
 
 @router.put("")
 def put_settings(body: SettingsUpdate):
+    if body.refresh_time is not None and not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", body.refresh_time):
+        raise HTTPException(422, "refresh_time은 HH:MM 형식이어야 합니다")  # Codex 리뷰 반영
+    if body.watch_folder is not None and not body.watch_folder.strip():
+        raise HTTPException(422, "watch_folder는 비워둘 수 없습니다")
     return svc.update_settings(body.watch_folder, body.watch_enabled, body.refresh_time)
 
 

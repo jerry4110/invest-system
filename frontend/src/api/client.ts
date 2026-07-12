@@ -32,10 +32,10 @@ export const api = {
     req<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(s) }),
   listSecrets: () => req<SecretItem[]>("/api/settings/secrets"),
   setSecret: (key: string, value: string) =>
-    req<{ ok: boolean }>(`/api/settings/secrets/${key}`, {
+    req<{ ok: boolean }>(`/api/settings/secrets/${encodeURIComponent(key)}`, {
       method: "PUT",
       body: JSON.stringify({ value }),
     }),
   deleteSecret: (key: string) =>
-    req<{ ok: boolean }>(`/api/settings/secrets/${key}`, { method: "DELETE" }),
+    req<{ ok: boolean }>(`/api/settings/secrets/${encodeURIComponent(key)}`, { method: "DELETE" }),
 };

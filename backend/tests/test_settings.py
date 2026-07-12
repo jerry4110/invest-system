@@ -56,3 +56,10 @@ def test_secret_delete(client):
     assert res.status_code == 200
     listed = client.get("/api/settings/secrets").json()
     assert not any(s["key"] == "dart_api_key" for s in listed)
+
+
+def test_invalid_refresh_time_rejected(client):
+    """Codex 리뷰 반영: 형식 오류는 422."""
+    assert client.put("/api/settings", json={"refresh_time": "25:99"}).status_code == 422
+    assert client.put("/api/settings", json={"refresh_time": "0800"}).status_code == 422
+    assert client.put("/api/settings", json={"watch_folder": "   "}).status_code == 422

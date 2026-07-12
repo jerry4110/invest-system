@@ -2,7 +2,7 @@
 from datetime import datetime, date
 
 from sqlalchemy import (
-    Date, DateTime, Float, ForeignKey, Integer, String, Text,
+    Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -28,12 +28,12 @@ class Holding(Base):
     ticker: Mapped[str] = mapped_column(String(20))
     name: Mapped[str] = mapped_column(String(100))
     market: Mapped[str] = mapped_column(String(20))            # KRX | NASDAQ | ...
-    qty: Mapped[float] = mapped_column(Float)
-    avg_price: Mapped[float] = mapped_column(Float)
-    buy_amount: Mapped[float] = mapped_column(Float)
-    cur_price: Mapped[float] = mapped_column(Float)
-    eval_amount: Mapped[float] = mapped_column(Float)
-    pnl_amount: Mapped[float] = mapped_column(Float)
+    qty: Mapped[float] = mapped_column(Numeric(18, 6))       # 금액·수량은 Numeric (Codex 리뷰 반영)
+    avg_price: Mapped[float] = mapped_column(Numeric(18, 4))
+    buy_amount: Mapped[float] = mapped_column(Numeric(18, 2))
+    cur_price: Mapped[float] = mapped_column(Numeric(18, 4))
+    eval_amount: Mapped[float] = mapped_column(Numeric(18, 2))
+    pnl_amount: Mapped[float] = mapped_column(Numeric(18, 2))
     pnl_pct: Mapped[float] = mapped_column(Float)
     as_of: Mapped[datetime] = mapped_column(DateTime)
 
@@ -43,7 +43,7 @@ class CashBalance(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     account_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
     currency: Mapped[str] = mapped_column(String(10), default="KRW")
-    amount: Mapped[float] = mapped_column(Float)
+    amount: Mapped[float] = mapped_column(Numeric(18, 2))
     as_of: Mapped[datetime] = mapped_column(DateTime)
 
 
@@ -51,11 +51,12 @@ class AssetSnapshot(Base):
     __tablename__ = "asset_snapshot"
     id: Mapped[int] = mapped_column(primary_key=True)
     date: Mapped[date] = mapped_column(Date, unique=True)      # 일별 1행 (FR-02-02)
-    total_asset: Mapped[float] = mapped_column(Float)
-    total_buy: Mapped[float] = mapped_column(Float)
-    total_eval: Mapped[float] = mapped_column(Float)
-    total_pnl: Mapped[float] = mapped_column(Float)
-    total_cash: Mapped[float] = mapped_column(Float)
+    total_asset: Mapped[float] = mapped_column(Numeric(18, 2))
+    total_buy: Mapped[float] = mapped_column(Numeric(18, 2))
+    total_eval: Mapped[float] = mapped_column(Numeric(18, 2))
+    total_pnl: Mapped[float] = mapped_column(Numeric(18, 2))
+    total_cash: Mapped[float] = mapped_column(Numeric(18, 2))
+    as_of: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)  # NFR-04 (Codex 리뷰 반영)
 
 
 class MarketIndicator(Base):
@@ -123,8 +124,8 @@ class Transaction(Base):
     account_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
     ticker: Mapped[str] = mapped_column(String(20))
     side: Mapped[str] = mapped_column(String(10))              # buy | sell
-    qty: Mapped[float] = mapped_column(Float)
-    price: Mapped[float] = mapped_column(Float)
+    qty: Mapped[float] = mapped_column(Numeric(18, 6))
+    price: Mapped[float] = mapped_column(Numeric(18, 4))
     executed_at: Mapped[datetime] = mapped_column(DateTime)
     realized_pnl: Mapped[float] = mapped_column(Float, nullable=True)
     note: Mapped[str] = mapped_column(Text, default="")        # 판단 근거 (FR-06-03)

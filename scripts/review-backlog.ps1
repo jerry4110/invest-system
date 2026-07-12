@@ -1,5 +1,7 @@
 # 소급 Codex 리뷰 (PowerShell): 모든 기존 커밋을 오래된 순으로 리뷰
 # 실행: invest-system 폴더에서  .\scripts\review-backlog.ps1
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 New-Item -ItemType Directory -Force -Path reviews | Out-Null
 $commits = git rev-list --reverse HEAD
 foreach ($c in $commits) {

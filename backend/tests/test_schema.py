@@ -17,9 +17,19 @@ def test_all_tables_created():
     assert EXPECTED_TABLES <= tables, f"누락: {EXPECTED_TABLES - tables}"
 
 
-def test_holding_has_as_of_column():
-    """NFR-04: 시계열·조회 데이터에 기준시각(as_of) 필수."""
-    cols = {c.name for c in Base.metadata.tables["holding"].columns}
-    assert "as_of" in cols
-    cols_mi = {c.name for c in Base.metadata.tables["market_indicator"].columns}
-    assert "as_of" in cols_mi
+import pytest
+
+
+@pytest.mark.parametrize("table", ["holding", "cash_balance", "asset_snapshot", "market_indicator"])
+def test_lookup_tables_have_as_of_column(table):
+    """NFR-04: 시계열·조회 데이터 테이블 전체에 기준시각(as_of) 필수 (Codex 리뷰 반영)."""
+    cols = {c.name for c in Base.metadata.tables[table].columns}
+    assert "as_of" in cols, f"{table}에 as_of 없음"
+
+
+def test_money_columns_are_numeric():
+    """금액 컬럼은 부동소수점 누적오차 방지 위해 Numeric (Codex 리뷰 반영)."""
+    from sqlalchemy import Numeric
+    for table, col in [("holding", "buy_amount"), ("holding", "eval_amount"),
+                       ("cash_balance", "amount"), ("asset_snapshot", "total_asset")]:
+        assert isinstance(Base.metadata.tables[table].columns[col].type, Numeric)

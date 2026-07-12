@@ -52,6 +52,7 @@ def test_change_pct_computed(session):
     latest = market_service.get_latest()
     kospi = next(x for x in latest if x["code"] == "KOSPI")
     # 마지막 이틀: 101 -> 100 → -0.99%
+    assert "as_of" in kospi and kospi["as_of"]  # NFR-04 (Codex 리뷰 반영)
     assert kospi["value"] == 100.0
     assert round(kospi["change_pct"], 2) == -0.99
 
