@@ -136,9 +136,9 @@ def test_mirae_real_format_pct_and_region(tmp_path):
     by = {h.ticker: h for h in holdings}
     assert round(by["487340"].pnl_pct, 2) == 0.36
     assert round(by["446770"].pnl_pct, 2) == 105.58
-    # 영숫자 코드 0091P0 — 지역='국내'이므로 KRX (기존 버그: OVERSEAS 오분류)
-    assert by["0091P0"].market == "KRX"
-    assert by["446770"].market == "OVERSEAS"   # 지역='기타'
+    # 상장시장 기준: 한국형 6자리 코드는 지역 컬럼과 무관하게 KRX
+    assert by["0091P0"].market == "KRX"        # 영숫자 코드 (기존 버그: OVERSEAS 오분류)
+    assert by["446770"].market == "KRX"        # 지역='기타'(기초자산)여도 KRX 상장
 
 
 def test_ratio_scale_pct_normalized(tmp_path):

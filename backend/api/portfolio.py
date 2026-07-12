@@ -29,10 +29,12 @@ async def upload_balance(file: UploadFile):
 
 
 @router.post("/scan")
-def scan_now():
-    """감시 폴더 즉시 스캔 (FR-03-01)."""
+def scan_now(force: bool = False):
+    """감시 폴더 즉시 스캔 (FR-03-01). force=true면 처리 이력 무시 재처리."""
     folder = settings_service.get_settings()["watch_folder"]
-    return {"imported": portfolio_service.scan_watch_folder(folder), "folder": folder}
+    detail = portfolio_service.scan_watch_folder_detail(folder, force=force)
+    detail["folder"] = folder
+    return detail
 
 
 @router.get("/column-map")

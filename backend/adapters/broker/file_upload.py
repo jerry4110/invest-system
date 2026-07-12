@@ -27,6 +27,7 @@ HEADER_CANDIDATES: dict[str, list[str]] = {
     "eval_amount": ["평가금액", "평가액", "잔고평가금액"],
     "pnl_amount":  ["평가손익", "손익", "평가손익금액", "손익금액"],
     "pnl_pct":     ["수익률", "수익률(%)", "손익률", "수익율"],
+    "region":      ["지역", "시장", "국가", "시장구분"],
 }
 REQUIRED = {"name", "qty"}  # 최소 필수 — 나머지는 계산으로 보완
 
@@ -34,7 +35,8 @@ REQUIRED = {"name", "qty"}  # 최소 필수 — 나머지는 계산으로 보완
 def _clean_number(v) -> Decimal:
     if pd.isna(v):
         return Decimal("0")
-    s = str(v).replace(",", "").replace("원", "").replace("₩", "").replace("$", "").strip()
+    s = (str(v).replace(",", "").replace("원", "").replace("₩", "")
+         .replace("$", "").replace("%", "").strip())
     if s in ("", "-"):
         return Decimal("0")
     try:
@@ -69,6 +71,21 @@ def _find_header_row(df: pd.DataFrame, mapping: dict[str, str] | None) -> tuple[
         f"(필수: 종목명·보유수량 / 인식 후보 예: {', '.join(HEADER_CANDIDATES['qty'])})")
 
 
+def _classify_market(ticker: str, region: str) -> str:
+    """상장시장 분류 — 한국 코드 패턴(6자리 영숫자, 숫자 포함) 우선, '지역' 컬럼은 보조.
+
+    주의: 미래에셋 '지역' 컬럼은 기초자산 지역(예: 글로벌반도체 ETF=기타)이라
+    상장시장 판별에 단독 사용 불가 (2026-07-12 실파일 검증).
+    """
+    if ticker.isdigit():
+        return "KRX"
+    if len(ticker) == 6 and ticker.isalnum() and any(c.isdigit() for c in ticker):
+        return "KRX"   # 0091P0 같은 우선주·ETF 코드
+    if region:
+        return "KRX" if region == "국내" else "OVERSEAS"
+    return "OVERSEAS" if ticker.isalpha() else "UNKNOWN"
+
+
 def parse_balance_file(path: str | Path, mapping: dict[str, str] | None = None) -> list[HoldingDTO]:
     path = Path(path)
     df = _read_raw(path)
@@ -91,12 +108,17 @@ def parse_balance_file(path: str | Path, mapping: dict[str, str] | None = None) 
         cur = _clean_number(get("cur_price"))
         ev = _clean_number(get("eval_amount")) or (qty * cur)
         pnl = _clean_number(get("pnl_amount")) or (ev - buy)
-        try:
-            pct = float(_clean_number(get("pnl_pct")))
-        except ParseError:
-            pct = float(pnl / buy * 100) if buy else 0.0
+        # 수익률: 파일값은 %·비율 등 형식이 제각각 → 매입금액이 있으면 재계산이 진실
+        if buy:
+            pct = float(pnl / buy * 100)
+        else:
+            try:
+                pct = float(_clean_number(get("pnl_pct")))
+            except ParseError:
+                pct = 0.0
         ticker = str(get("ticker", "")).strip()
-        market = "KRX" if ticker.isdigit() else "OVERSEAS" if ticker else "UNKNOWN"
+        region = str(get("region", "")).strip()
+        market = _classify_market(ticker, region)
         holdings.append(HoldingDTO(name=name, ticker=ticker or name, qty=qty,
                                    avg_price=avg, buy_amount=buy, cur_price=cur,
                                    eval_amount=ev, pnl_amount=pnl, pnl_pct=pct,

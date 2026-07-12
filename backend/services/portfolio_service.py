@@ -71,31 +71,45 @@ def _mark_processed(key: str) -> None:
         s.commit()
 
 
-def scan_watch_folder(folder: str) -> int:
-    """감시 폴더에서 미처리 잔고 파일을 찾아 임포트 (FR-03-01, D-013).
+def scan_watch_folder(folder: str, force: bool = False) -> int:
+    """감시 폴더 스캔 (FR-03-01, D-013). force=True면 처리 이력 무시하고 재처리."""
+    return scan_watch_folder_detail(folder, force=force)["imported"]
 
-    실패는 격리 — 한 파일의 파싱 실패가 스캔 전체·기존 데이터를 해치지 않는다.
+
+def scan_watch_folder_detail(folder: str, force: bool = False) -> dict:
+    """스캔 상세 보고 — 파일별 imported/skipped/failed 사유 포함 (진단용).
+
+    실패는 격리 — 한 파일의 실패가 스캔 전체·기존 데이터를 해치지 않는다.
+    ParseError 외 예외(인코딩·라이브러리 등)도 격리하고 사유를 기록한다.
     """
     p = Path(folder)
     if not p.is_dir():
-        return 0
-    imported = 0
+        return {"imported": 0, "files": [], "error": f"폴더 없음: {folder}"}
+    imported, files = 0, []
     for f in sorted(p.iterdir()):
         if f.suffix.lower() not in (".csv", ".xlsx", ".xls"):
+            continue
+        if f.name.startswith("~$"):  # 엑셀 임시 잠금 파일
             continue
         if not any(k in f.name.lower() or k in f.name for k in FILE_PATTERNS):
             continue
         key = f"{f.name}:{f.stat().st_mtime_ns}"
-        if key in _processed():
+        if not force and key in _processed():
+            files.append({"file": f.name, "status": "skipped", "reason": "이미 처리됨"})
             continue
         try:
-            import_balance_file(f)
+            n = import_balance_file(f)
             imported += 1
+            files.append({"file": f.name, "status": "imported", "holdings": n})
         except ParseError as e:
             logger.warning("잔고 파일 파싱 실패(격리): %s — %s", f.name, e)
+            files.append({"file": f.name, "status": "failed", "reason": str(e)})
+        except Exception as e:
+            logger.warning("잔고 파일 처리 오류(격리): %s — %s", f.name, e)
+            files.append({"file": f.name, "status": "failed", "reason": f"{type(e).__name__}: {e}"})
         finally:
-            _mark_processed(key)  # 실패 파일 반복 시도 방지 (수정되면 mtime 변경으로 재시도)
-    return imported
+            _mark_processed(key)  # 동일 파일 반복 시도 방지 (force 또는 파일 수정 시 재시도)
+    return {"imported": imported, "files": files}
 
 
 def get_holdings() -> dict:

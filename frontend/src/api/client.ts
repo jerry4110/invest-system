@@ -106,7 +106,10 @@ export const api = {
   getHoldings: () => req<PortfolioData>("/api/portfolio/holdings"),
   setCash: (amount: number) =>
     req<{ ok: boolean }>("/api/portfolio/cash", { method: "PUT", body: JSON.stringify({ amount }) }),
-  scanBalanceFolder: () => req<{ imported: number; folder: string }>("/api/portfolio/scan", { method: "POST" }),
+  scanBalanceFolder: (force = false) =>
+    req<{ imported: number; folder: string;
+          files: { file: string; status: string; reason?: string; holdings?: number }[] }>(
+      `/api/portfolio/scan?force=${force}`, { method: "POST" }),
   getColumnMap: () => req<Record<string, string>>("/api/portfolio/column-map"),
   setColumnMap: (m: Record<string, string>) =>
     req<{ ok: boolean }>("/api/portfolio/column-map", { method: "PUT", body: JSON.stringify(m) }),

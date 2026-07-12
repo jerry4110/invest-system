@@ -21,9 +21,18 @@ export default function Portfolio() {
   const { holdings, totals, as_of } = data;
   const stale = as_of && Date.now() - new Date(as_of).getTime() > 24 * 3600 * 1000;
 
-  const scan = async () => {
-    const r = await api.scanBalanceFolder();
-    setMsg(r.imported ? `✅ 잔고 파일 ${r.imported}건 반영` : "새 잔고 파일 없음");
+  const scan = async (force = false) => {
+    const r = await api.scanBalanceFolder(force);
+    if (r.imported) {
+      setMsg(`✅ 잔고 파일 ${r.imported}건 반영 (${r.folder})`);
+    } else if (r.files.length === 0) {
+      setMsg(`감시 폴더(${r.folder})에 잔고 파일이 없습니다 — 파일명에 '잔고' 또는 '미래에셋' 포함 필요`);
+    } else {
+      const failed = r.files.filter((f) => f.status === "failed");
+      setMsg(failed.length
+        ? `❌ ${failed[0].file}: ${failed[0].reason}`
+        : "모든 파일이 이미 처리됨 — 변경사항이 없으면 '강제 재스캔'을 사용하세요");
+    }
     load();
   };
 
@@ -37,7 +46,8 @@ export default function Portfolio() {
     <section>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
         <h2 style={{ margin: 0 }}>포트폴리오</h2>
-        <button onClick={scan}>잔고 파일 스캔</button>
+        <button onClick={() => scan(false)}>잔고 파일 스캔</button>
+        <button onClick={() => scan(true)} style={{ fontSize: 12 }}>강제 재스캔</button>
         <a href="/api/portfolio/export.csv" download>CSV 내려받기</a>
         {as_of && (
           <span style={{ fontSize: 12, color: stale ? "#d97706" : "#888" }}>
