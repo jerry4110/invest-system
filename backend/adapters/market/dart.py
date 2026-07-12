@@ -12,7 +12,10 @@ from datetime import date
 logger = logging.getLogger(__name__)
 
 BASE = "https://opendart.fss.or.kr/api"
-_ACCOUNTS = {"매출액": "revenue", "영업이익": "operating_profit", "당기순이익": "net_income"}
+_ACCOUNTS = {"매출액": "revenue", "영업이익": "operating_profit", "당기순이익": "net_income",
+             "자산총계": "total_assets", "부채총계": "total_liabilities",
+             "자본총계": "total_equity", "유동자산": "current_assets",
+             "유동부채": "current_liabilities"}
 
 
 def _match_account(account_nm: str) -> str | None:

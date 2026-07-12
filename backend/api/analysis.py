@@ -1,7 +1,7 @@
 """종목분석 API (M4) — T-22: 재무 조회부터 시작, T-23~26에서 확장."""
 from fastapi import APIRouter, HTTPException
 
-from backend.services import financials_service
+from backend.services import analysis_service, financials_service
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
@@ -13,3 +13,21 @@ def financials(ticker: str):
         return financials_service.get_financials(ticker)
     except (RuntimeError, ValueError) as e:
         raise HTTPException(422, str(e))
+
+
+@router.get("/fundamental/{ticker}")
+def fundamental(ticker: str):
+    """분석 A: 지표 평가·Tier 1 (FR-04-01~04)."""
+    try:
+        return analysis_service.analyze_fundamental(ticker)
+    except (RuntimeError, ValueError) as e:
+        raise HTTPException(422, str(e))
+
+
+@router.get("/compare")
+def compare(tickers: str):
+    """FR-04-05: 비교 — 쉼표 구분, 대상 포함 2~6개."""
+    lst = [t.strip() for t in tickers.split(",") if t.strip()]
+    if not 2 <= len(lst) <= 6:
+        raise HTTPException(422, "비교는 대상 포함 2~6개 종목이어야 합니다")
+    return analysis_service.compare_fundamental(lst)

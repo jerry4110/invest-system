@@ -65,7 +65,7 @@ def test_tier1_verdict():
          "total_assets": 1700, "total_liabilities": 220, "total_equity": 1480,
          "current_assets": 900, "current_liabilities": 320},
         {"year": 2025, "revenue": 1690, "operating_profit": 550, "net_income": 400,
-         "total_assets": 2000, "total_liabilities": 250, "total_equity": 1750,
+         "total_assets": 1800, "total_liabilities": 250, "total_equity": 1550,  # ROE 25.8%
          "current_assets": 1000, "current_liabilities": 350},
     ], {"peg": 0.8, "per": 15, "pbr": 3, "ev_ebitda": 10})
     v = evaluate(strong)["tier1"]
@@ -90,3 +90,27 @@ def test_criteria_override(tmp_path, monkeypatch):
     assert get_criteria()["roe_pct"]["min"] == 8.0
     ev = evaluate(compute_metrics(FIN, VAL))                        # ROE 10% ≥ 8 → 충족
     assert {e["metric"]: e for e in ev["items"]}["roe_pct"]["status"] == "충족"
+
+
+def test_analysis_api_contract(tmp_path, monkeypatch):
+    """T-23 API: 분석 A 응답 계약 + 비교 검증 + 고지문 (FR-04-36)."""
+    from fastapi.testclient import TestClient
+    from backend import main as main_mod
+    from backend.infra import db as db_mod
+    from backend.services import analysis_service
+
+    monkeypatch.setattr(db_mod, "_engine", None)
+    monkeypatch.setattr(db_mod, "_SessionLocal", None)
+    db_mod.init_db(str(tmp_path / "t.db"))
+    monkeypatch.setattr(analysis_service, "_load_inputs",
+                        lambda t: (FIN, VAL, "TEST"))
+    client = TestClient(main_mod.create_app())
+
+    body = client.get("/api/analysis/fundamental/005930").json()
+    assert body["evaluation"]["tier1"]["verdict"] in ("충족", "미충족", "판정 불가")
+    assert body["base_date"] and body["as_of"]                    # T-1·NFR-04
+    assert "참고자료" in body["disclaimer"]                        # FR-04-36
+
+    cmp = client.get("/api/analysis/compare?tickers=005930,000660").json()
+    assert len(cmp["results"]) == 2
+    assert client.get("/api/analysis/compare?tickers=005930").status_code == 422
