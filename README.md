@@ -39,3 +39,15 @@ python -m pytest backend/tests -q
 - API 키는 코드·config.yaml에 절대 넣지 않는다 (설정 페이지에서 암호화 저장 — T-02)
 - 비즈니스 로직은 backend/services·domain에만 (React·라우터에 넣지 않음)
 - 커밋 전 pytest 통과 필수 (TDD — constitution §2.8)
+
+## Codex 교차 리뷰 (D-014)
+커밋할 때마다 Codex(GPT)가 diff를 자동 리뷰합니다.
+```bash
+# 1회 설정 (invest-system/ 에서)
+npm install -g @openai/codex && codex login   # 또는 OPENAI_API_KEY 설정
+sh scripts/setup-hooks.sh                      # post-commit 훅 활성화
+```
+- 리뷰 결과: `reviews/<커밋해시>.md` + `git notes show <커밋>` 으로 확인
+- **[Critical] 이슈는 다음 태스크 진행 전 해결** (constitution §2.8)
+- 일시 건너뛰기: `CODEX_REVIEW=0 git commit ...`
+- codex 미설치·미인증 시 자동 건너뜀 (커밋은 정상 진행)
