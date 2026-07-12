@@ -89,3 +89,33 @@ def test_router_domestic_vs_overseas(fresh, monkeypatch):
     assert financials_service.get_financials("NVDA")["source"] == "yfinance"
     assert financials_service.get_financials("NVDA")["financials"][0]["revenue"] == 2
     assert financials_service.get_financials("005930")["as_of"]   # NFR-04
+
+
+def test_dart_error_status_surfaces_message(fresh):
+    """DART 오류(키 미등록 등)는 빈 목록이 아니라 명확한 오류로 노출돼야 한다."""
+    from backend.services import settings_service
+    settings_service.set_secret("dart_api_key", "BADKEY")
+    from backend.adapters.market.dart import DartClient
+
+    def fetch(url):
+        if "corpCode" in url:
+            return _corp_zip()
+        return json.dumps({"status": "020", "message": "등록되지 않은 인증키입니다."}).encode()
+
+    with pytest.raises(RuntimeError, match="등록되지 않은 인증키"):
+        DartClient(fetch=fetch, latest_year=2025).get_major_financials("005930")
+
+
+def test_corp_zip_invalid_raises_clear_error(fresh):
+    """corpCode 응답이 zip이 아니면(키 오류 XML) 원인 메시지 노출."""
+    from backend.services import settings_service
+    settings_service.set_secret("dart_api_key", "BADKEY")
+    from backend.adapters.market import dart as dart_mod
+    dart_mod._corp_cache = None
+    from backend.adapters.market.dart import DartClient
+
+    def fetch(url):
+        return b'<?xml version="1.0"?><result><status>020</status><message>KEY ERROR</message></result>'
+
+    with pytest.raises(RuntimeError, match="corpCode"):
+        DartClient(fetch=fetch, latest_year=2025).get_major_financials("005930")

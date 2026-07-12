@@ -39,8 +39,13 @@ class DartClient:
         global _corp_cache
         if _corp_cache is None:
             raw = self._fetch(f"{BASE}/corpCode.xml?crtfc_key={self._key()}")
-            with zipfile.ZipFile(io.BytesIO(raw)) as z:
-                xml = z.read(z.namelist()[0])
+            try:
+                with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                    xml = z.read(z.namelist()[0])
+            except zipfile.BadZipFile:
+                snippet = raw[:300].decode("utf-8", errors="replace")
+                raise RuntimeError(
+                    f"DART corpCode 다운로드 실패 — 키가 유효한지 확인하세요. 응답: {snippet}")
             mapping = {}
             for el in ET.fromstring(xml).iter("list"):
                 stock = (el.findtext("stock_code") or "").strip()
@@ -57,12 +62,14 @@ class DartClient:
         if not corp:
             raise ValueError(f"DART에서 종목코드 {stock_code}를 찾지 못했습니다")
         out = []
+        last_err = None
         for year in range(self._latest - years + 1, self._latest + 1):
             url = (f"{BASE}/fnlttSinglAcnt.json?crtfc_key={self._key()}"
                    f"&corp_code={corp}&bsns_year={year}&reprt_code=11011")
             body = json.loads(self._fetch(url))
             if body.get("status") != "000":
-                logger.warning("DART %d년 재무 없음: %s", year, body.get("message"))
+                last_err = f"{year}년: {body.get('message')} (status {body.get('status')})"
+                logger.warning("DART 재무 조회 실패 — %s", last_err)
                 continue
             row = {"year": year}
             for item in body.get("list", []):
@@ -71,4 +78,6 @@ class DartClient:
                     row[field] = int(str(item["thstrm_amount"]).replace(",", "") or 0)
             if len(row) > 1:
                 out.append(row)
+        if not out:
+            raise RuntimeError(f"DART 재무 데이터를 가져오지 못했습니다 — {last_err or '응답 없음'}")
         return out
