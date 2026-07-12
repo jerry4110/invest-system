@@ -1,0 +1,4 @@
+# 비민감 설정 (API 키는 여기 두지 않는다 — constitution §2.5)
+refresh_time: "08:00"
+api_port: 8000
+db_path: "data/invest.db"
