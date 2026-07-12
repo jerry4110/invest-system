@@ -1,9 +1,22 @@
 import { useState } from "react";
+import CandleChart from "../components/CandleChart";
 
 interface EvalItem {
   metric: string; label: string; value: number | null;
   threshold: number; direction: string; status: string;
 }
+interface TechResult {
+  ticker: string; base_date: string; as_of: string; disclaimer: string;
+  ma: Record<string, number | null>; ma_alignment: string | null;
+  rsi: number | null; macd: { macd: number; signal: number; histogram: number } | null;
+  cross: string | null; volume_surge_ratio: number | null;
+  signal: { verdict: string; score: number; reasons: string[] };
+  ohlcv: { date: string; open: number; high: number; low: number; close: number; volume: number }[];
+  investor_flows: { date: string; individual: number; institution: number; foreign: number }[] | null;
+  short_interest: { date: string; balance: number; ratio_pct: number }[] | null;
+  notes: string[];
+}
+
 interface FundResult {
   ticker: string; source: string; base_date: string;
   financials: { year: number; revenue?: number; operating_profit?: number; net_income?: number }[];
@@ -22,6 +35,8 @@ export default function Analysis() {
   const [peers, setPeers] = useState("");
   const [results, setResults] = useState<FundResult[]>([]);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<"fund" | "tech">("fund");
+  const [tech, setTech] = useState<TechResult | null>(null);
   const [msg, setMsg] = useState("");
 
   const run = async () => {
@@ -41,6 +56,11 @@ export default function Analysis() {
         if (!res.ok) throw new Error((await res.json()).detail);
         setResults([await res.json()]);
       }
+      // 기술적 분석 (대상 종목만)
+      try {
+        const tr = await fetch(`/api/analysis/technical/${encodeURIComponent(ticker.trim())}`);
+        setTech(tr.ok ? await tr.json() : null);
+      } catch { setTech(null); }
     } catch (e) { setMsg(`❌ ${e instanceof Error ? e.message : "분석 실패"}`); }
     finally { setBusy(false); }
   };
@@ -62,7 +82,59 @@ export default function Analysis() {
       </div>
       {msg && <p style={{ fontSize: 13 }}>{msg}</p>}
 
-      {main && (
+      {(main || tech) && (
+        <div style={{ display: "flex", gap: 4, margin: "8px 0" }}>
+          {[["fund", "기초(재무) 분석"], ["tech", "기술적 분석"]].map(([k, label]) => (
+            <button key={k} onClick={() => setTab(k as "fund" | "tech")}
+              style={{ padding: "6px 18px", borderRadius: 6, border: "1px solid #ddd",
+                background: tab === k ? "#2563eb" : "#fff", color: tab === k ? "#fff" : "#333" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === "tech" && tech && (
+        <>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", margin: "8px 0", flexWrap: "wrap" }}>
+            <span style={{ padding: "4px 14px", borderRadius: 20, fontWeight: 700, color: "#fff",
+              background: tech.signal.verdict === "매수" ? "#dc2626"
+                : tech.signal.verdict === "매도" ? "#2563eb" : "#64748b" }}>
+              시그널: {tech.signal.verdict}
+            </span>
+            <span style={{ fontSize: 13 }}>
+              {tech.ma_alignment ?? "-"} · RSI {tech.rsi ?? "-"}
+              {tech.cross && ` · ${tech.cross}`}
+              {tech.volume_surge_ratio != null && tech.volume_surge_ratio >= 1.5 && ` · 거래량 ${tech.volume_surge_ratio}배`}
+            </span>
+            <span style={{ fontSize: 12, color: "#888" }}>기준일 {tech.base_date}</span>
+          </div>
+          <CandleChart data={tech.ohlcv} />
+          <ul style={{ fontSize: 13, marginTop: 10 }}>
+            {tech.signal.reasons.map((r, i) => <li key={i}>{r}</li>)}
+          </ul>
+          {tech.investor_flows && tech.investor_flows.length > 0 && (() => {
+            const sum = (k: "individual" | "institution" | "foreign") =>
+              tech.investor_flows!.slice(-20).reduce((a, b) => a + b[k], 0);
+            const fmt억 = (v: number) => (v / 1e8).toFixed(0) + "억";
+            return (
+              <p style={{ fontSize: 13 }}>
+                <b>최근 20일 누적 순매수</b> — 개인 {fmt억(sum("individual"))} ·
+                기관 {fmt억(sum("institution"))} · 외국인 {fmt억(sum("foreign"))}
+              </p>
+            );
+          })()}
+          {tech.short_interest && tech.short_interest.length > 0 && (
+            <p style={{ fontSize: 13 }}>
+              <b>공매도 비중</b> — 최근 {tech.short_interest[tech.short_interest.length - 1].ratio_pct}%
+            </p>
+          )}
+          {tech.notes.map((n, i) => <p key={i} style={{ fontSize: 12, color: "#d97706" }}>ℹ️ {n}</p>)}
+          <p style={{ fontSize: 12, color: "#888" }}>{tech.disclaimer}</p>
+        </>
+      )}
+
+      {tab === "fund" && main && (
         <>
           <div style={{ display: "flex", gap: 10, alignItems: "center", margin: "8px 0" }}>
             <span style={{
@@ -124,8 +196,8 @@ export default function Analysis() {
           </p>
         </>
       )}
-      {!main && !busy && (
-        <p style={{ color: "#666" }}>종목코드를 입력하고 분석을 실행하세요. 기술적 분석(B)·뉴스(C)·AI 토론은 다음 업데이트에서 탭으로 추가됩니다.</p>
+      {!main && !tech && !busy && (
+        <p style={{ color: "#666" }}>종목코드를 입력하고 분석을 실행하세요. 뉴스(C)·AI 토론·딥리서치는 다음 업데이트에서 추가됩니다.</p>
       )}
     </section>
   );

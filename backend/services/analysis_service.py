@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 
 from backend.domain.criteria import evaluate
 from backend.domain.metrics import compute_metrics
+from backend.domain.technical import analyze_technical as _tech_engine
 
 
 def _load_inputs(ticker: str) -> tuple[list[dict], dict, str]:
@@ -46,3 +47,47 @@ def compare_fundamental(tickers: list[str]) -> dict:
             errors.append({"ticker": t, "error": str(e)})
     return {"results": results, "errors": errors,
             "as_of": datetime.now().isoformat(timespec="seconds")}
+
+
+def _load_ohlcv(ticker: str, days: int = 180) -> list[dict]:
+    from backend.adapters.market import yahoo
+    return yahoo.fetch_ohlcv(ticker, days)
+
+
+def _load_investor_flows(ticker: str) -> list[dict]:
+    from backend.adapters.market import krx
+    return krx.get_investor_flows(ticker)
+
+
+def _load_short_interest(ticker: str) -> list[dict]:
+    from backend.adapters.market import krx
+    return krx.get_short_interest(ticker)
+
+
+def analyze_technical(ticker: str) -> dict:
+    """분석 B (FR-04-11~18): 지표·시그널 + 수급·공매도(국내, 실패 격리)."""
+    ohlcv = _load_ohlcv(ticker)
+    result = _tech_engine(ohlcv)
+    domestic = len(ticker) == 6 and ticker.isalnum() and any(c.isdigit() for c in ticker)
+
+    flows, shorts, notes = None, None, []
+    if domestic:
+        try:
+            flows = _load_investor_flows(ticker)
+        except Exception as e:
+            notes.append(f"수급 데이터 조회 실패(KRX): {e}")
+        try:
+            shorts = _load_short_interest(ticker)
+        except Exception as e:
+            notes.append(f"공매도 데이터 조회 실패(KRX): {e}")
+    else:
+        notes.append("수급·공매도는 국내 종목만 제공됩니다")
+
+    result.update({
+        "ticker": ticker, "ohlcv": ohlcv[-120:],
+        "investor_flows": flows, "short_interest": shorts, "notes": notes,
+        "base_date": ohlcv[-1]["date"] if ohlcv else None,
+        "as_of": datetime.now().isoformat(timespec="seconds"),
+        "disclaimer": "본 분석은 투자 참고자료이며 최종 판단은 투자자 본인의 책임입니다.",
+    })
+    return result

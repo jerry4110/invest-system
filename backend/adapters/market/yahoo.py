@@ -82,3 +82,23 @@ def get_balance(ticker: str, years: int = 3) -> dict[int, dict]:
         if row:
             out[col.year] = row
     return out
+
+
+def fetch_ohlcv(ticker: str, days: int = 180) -> list[dict]:
+    """일봉 OHLCV (차트·기술 분석용). 한국형 코드는 .KS→.KQ 폴백."""
+    import yfinance as yf
+
+    for symbol in (_yf_symbol(ticker),
+                   f"{ticker}.KQ" if _yf_symbol(ticker).endswith(".KS") else None):
+        if symbol is None:
+            continue
+        df = yf.Ticker(symbol).history(period=f"{days + 30}d", interval="1d", auto_adjust=True)
+        if df is None or df.empty:
+            continue
+        out = []
+        for idx, row in df.tail(days).iterrows():
+            out.append({"date": idx.date().isoformat(), "open": float(row["Open"]),
+                        "high": float(row["High"]), "low": float(row["Low"]),
+                        "close": float(row["Close"]), "volume": int(row["Volume"])})
+        return out
+    raise RuntimeError(f"시세 데이터 없음: {ticker}")

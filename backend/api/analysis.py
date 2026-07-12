@@ -31,3 +31,12 @@ def compare(tickers: str):
     if not 2 <= len(lst) <= 6:
         raise HTTPException(422, "비교는 대상 포함 2~6개 종목이어야 합니다")
     return analysis_service.compare_fundamental(lst)
+
+
+@router.get("/technical/{ticker}")
+def technical(ticker: str):
+    """분석 B: 기술적 분석 (FR-04-11~18)."""
+    try:
+        return analysis_service.analyze_technical(ticker)
+    except (RuntimeError, ValueError) as e:
+        raise HTTPException(422, str(e))
