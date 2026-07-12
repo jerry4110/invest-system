@@ -6,8 +6,9 @@ from fastapi import FastAPI
 from backend.api.dashboard import router as dashboard_router
 from backend.api.portfolio import router as portfolio_router
 from backend.api.settings import router as settings_router
+from backend.api.strategy import router as strategy_router
 
-APP_VERSION = "0.4.0"  # Phase 1 / T-05
+APP_VERSION = "0.5.0"  # Phase 1 / T-09
 
 
 def create_app() -> FastAPI:
@@ -15,6 +16,7 @@ def create_app() -> FastAPI:
     app.include_router(settings_router)
     app.include_router(dashboard_router)
     app.include_router(portfolio_router)
+    app.include_router(strategy_router)
 
     @app.on_event("startup")
     def _start_watcher():

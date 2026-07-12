@@ -50,6 +50,15 @@ export interface AssetSummary {
   as_of: string;
 }
 
+export interface StrategyData {
+  persona: "value" | "growth" | "trader";
+  guideline_text: string;
+  version: number;
+  updated_at: string;
+  files: { id: number; filename: string; uploaded_at: string }[];
+  allocation: Record<string, number>;
+}
+
 export interface SecretItem {
   key: string;
   masked: string;
@@ -72,6 +81,20 @@ export const api = {
   getSettings: () => req<Settings>("/api/settings"),
   updateSettings: (s: Partial<Settings>) =>
     req<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(s) }),
+  getStrategy: () => req<StrategyData>("/api/strategy"),
+  setPersona: (persona: string) =>
+    req<StrategyData>("/api/strategy/persona", { method: "PUT", body: JSON.stringify({ persona }) }),
+  saveGuideline: (text: string) =>
+    req<{ version: number }>("/api/strategy/guideline", { method: "PUT", body: JSON.stringify({ text }) }),
+  saveAllocation: (alloc: Record<string, number>) =>
+    req<{ ok: boolean }>("/api/strategy/allocation", { method: "PUT", body: JSON.stringify(alloc) }),
+  uploadStrategyFile: async (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/strategy/files", { method: "POST", body: fd });
+    if (!res.ok) throw new Error(`업로드 실패: ${res.status}`);
+    return res.json() as Promise<{ parsed_preview: string }>;
+  },
   getHoldings: () => req<PortfolioData>("/api/portfolio/holdings"),
   setCash: (amount: number) =>
     req<{ ok: boolean }>("/api/portfolio/cash", { method: "PUT", body: JSON.stringify({ amount }) }),
