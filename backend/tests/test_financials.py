@@ -119,3 +119,23 @@ def test_corp_zip_invalid_raises_clear_error(fresh):
 
     with pytest.raises(RuntimeError, match="corpCode"):
         DartClient(fetch=fetch, latest_year=2025).get_major_financials("005930")
+
+
+def test_dart_net_income_variant_account_name(fresh):
+    """실 DART 응답: '당기순이익(손실)' 등 변형 계정명도 매칭 (2026-07-12 실데이터 이슈)."""
+    from backend.services import settings_service
+    settings_service.set_secret("dart_api_key", "TESTKEY")
+    from backend.adapters.market.dart import DartClient
+
+    def fetch(url):
+        if "corpCode" in url:
+            return _corp_zip()
+        rows = [
+            {"account_nm": "매출액", "fs_div": "CFS", "thstrm_amount": "100"},
+            {"account_nm": "영업이익", "fs_div": "CFS", "thstrm_amount": "10"},
+            {"account_nm": "당기순이익(손실)", "fs_div": "CFS", "thstrm_amount": "5"},
+        ]
+        return json.dumps({"status": "000", "list": rows}).encode()
+
+    fin = DartClient(fetch=fetch, latest_year=2025).get_major_financials("005930", years=1)
+    assert fin[0]["net_income"] == 5
