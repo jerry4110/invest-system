@@ -45,7 +45,7 @@ python -m pytest backend/tests -q
 ```bash
 # 1회 설정 (invest-system/ 에서)
 npm install -g @openai/codex && codex login   # 또는 OPENAI_API_KEY 설정
-sh scripts/setup-hooks.sh                      # post-commit 훅 활성화
+.\scripts\setup-hooks.ps1                      # 훅 활성화 (PowerShell) — Git Bash면 sh scripts/setup-hooks.sh
 ```
 - 리뷰 결과: `reviews/<커밋해시>.md` + `git notes show <커밋>` 으로 확인
 - **[Critical] 이슈는 다음 태스크 진행 전 해결** (constitution §2.8)
