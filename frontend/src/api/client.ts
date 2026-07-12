@@ -59,6 +59,14 @@ export interface StrategyData {
   allocation: Record<string, number>;
 }
 
+export interface JobLogItem {
+  job_name: string;
+  status: "success" | "partial" | "failed" | "running";
+  started_at: string;
+  duration_sec: number | null;
+  message: string;
+}
+
 export interface SecretItem {
   key: string;
   masked: string;
@@ -102,6 +110,7 @@ export const api = {
   getColumnMap: () => req<Record<string, string>>("/api/portfolio/column-map"),
   setColumnMap: (m: Record<string, string>) =>
     req<{ ok: boolean }>("/api/portfolio/column-map", { method: "PUT", body: JSON.stringify(m) }),
+  getJobHistory: () => req<JobLogItem[]>("/api/settings/jobs"),
   listSecrets: () => req<SecretItem[]>("/api/settings/secrets"),
   setSecret: (key: string, value: string) =>
     req<{ ok: boolean }>(`/api/settings/secrets/${encodeURIComponent(key)}`, {

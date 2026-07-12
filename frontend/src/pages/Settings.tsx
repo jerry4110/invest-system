@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, SecretItem, Settings as SettingsType } from "../api/client";
+import { api, JobLogItem, SecretItem, Settings as SettingsType } from "../api/client";
 
 const MAP_FIELDS: [string, string][] = [
   ["name", "종목명"], ["ticker", "종목코드"], ["qty", "보유수량"], ["avg_price", "매입평균가"],
@@ -19,11 +19,13 @@ export default function Settings() {
   const [msg, setMsg] = useState("");
   const [colMap, setColMap] = useState<Record<string, string>>({});
   const [scanMsg, setScanMsg] = useState("");
+  const [jobs, setJobs] = useState<JobLogItem[]>([]);
 
   const load = () => {
     api.getSettings().then(setSettings).catch(() => setMsg("설정을 불러오지 못했습니다"));
     api.listSecrets().then(setSecrets).catch(() => {});
     api.getColumnMap().then(setColMap).catch(() => {});
+    api.getJobHistory().then(setJobs).catch(() => {});
   };
   useEffect(load, []);
 
@@ -109,6 +111,26 @@ export default function Settings() {
             onChange={(e) => setNewValue(e.target.value)} style={{ padding: 8 }} />
           <button onClick={addSecret}>추가</button>
         </div>
+      </div>
+
+      <div style={box}>
+        <h3>🕗 배치 실행 이력 (매일 {settings.refresh_time} 자동 갱신)</h3>
+        {jobs.length === 0 ? <p style={{ fontSize: 13, color: "#666" }}>아직 실행 이력이 없습니다.</p> : (
+          <table style={{ fontSize: 13, borderCollapse: "collapse" }}>
+            <tbody>
+              {jobs.map((j, i) => (
+                <tr key={i}>
+                  <td style={{ padding: "3px 10px" }}>
+                    {j.status === "success" ? "✅" : j.status === "partial" ? "⚠️" : "❌"}
+                  </td>
+                  <td style={{ padding: "3px 10px" }}>{j.started_at.replace("T", " ")}</td>
+                  <td style={{ padding: "3px 10px" }}>{j.duration_sec != null ? `${j.duration_sec}s` : "-"}</td>
+                  <td style={{ padding: "3px 10px", color: "#666" }}>{j.message}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <button onClick={save} style={{ padding: "10px 24px", background: "#2563eb", color: "#fff", border: 0, borderRadius: 6 }}>

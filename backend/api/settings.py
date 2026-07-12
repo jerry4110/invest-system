@@ -48,3 +48,20 @@ def put_secret(key: str, body: SecretValue):
 def delete_secret(key: str):
     svc.delete_secret(key)
     return {"ok": True}
+
+
+@router.get("/jobs")
+def job_history():
+    """배치 실행 이력 (FR-10-06·FR-00-23)."""
+    from backend.infra.db import get_session
+    from backend.infra.schema import JobLog
+
+    with get_session() as s:
+        rows = s.query(JobLog).order_by(JobLog.id.desc()).limit(30).all()
+    return [{
+        "job_name": r.job_name, "status": r.status,
+        "started_at": r.started_at.isoformat(timespec="seconds"),
+        "duration_sec": round((r.finished_at - r.started_at).total_seconds(), 1)
+                        if r.finished_at else None,
+        "message": r.message,
+    } for r in rows]

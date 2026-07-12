@@ -8,7 +8,7 @@ from backend.api.portfolio import router as portfolio_router
 from backend.api.settings import router as settings_router
 from backend.api.strategy import router as strategy_router
 
-APP_VERSION = "0.5.0"  # Phase 1 / T-09
+APP_VERSION = "0.6.0"  # Phase 1 / T-10
 
 
 def create_app() -> FastAPI:
@@ -19,11 +19,24 @@ def create_app() -> FastAPI:
     app.include_router(strategy_router)
 
     @app.on_event("startup")
-    def _start_watcher():
+    def _start_background():
+        import threading
+
         from backend.infra.db import init_db
+        from backend.infra.scheduler import start_scheduler
         from backend.infra.watcher import start_watcher
         init_db()
-        start_watcher()  # D-013 폴더 감시
+        start_watcher()      # D-013 폴더 감시
+        start_scheduler()    # FR-00-21 08:00 배치
+
+        def _catch_up():
+            from backend.jobs.morning_refresh import run_if_missed
+            try:
+                if run_if_missed():
+                    pass  # 오늘 미실행분 보정 실행됨
+            except Exception:
+                pass
+        threading.Thread(target=_catch_up, daemon=True).start()
 
     @app.get("/api/health")
     def health():

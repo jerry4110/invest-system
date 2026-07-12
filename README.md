@@ -51,3 +51,13 @@ npm install -g @openai/codex && codex login   # 또는 OPENAI_API_KEY 설정
 - **[Critical] 이슈는 다음 태스크 진행 전 해결** (constitution §2.8)
 - 일시 건너뛰기: `CODEX_REVIEW=0 git commit ...`
 - codex 미설치·미인증 시 자동 건너뜀 (커밋은 정상 진행)
+
+## 매일 08:00 자동 갱신 (T-10)
+앱(FastAPI)이 켜져 있으면 내장 스케줄러가 설정된 시각에 자동 실행합니다.
+앱을 항상 켜두지 않는 경우 **Windows 작업 스케줄러 병행 등록**을 권장합니다 (관리자 PowerShell, invest-system 폴더에서):
+```powershell
+schtasks /Create /TN "invest-system-morning" /SC DAILY /ST 08:00 `
+  /TR "python -m backend.jobs.morning_refresh" /RL LIMITED
+```
+- 앱 시작 시 "오늘 배치 미실행이면 즉시 보정 실행" 로직이 있어 이중 실행 걱정은 없습니다(성공 이력 있으면 skip)
+- 이력 확인: 설정 페이지 > 배치 실행 이력 / 실패 시 Windows 토스트 알림
