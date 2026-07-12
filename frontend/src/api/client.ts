@@ -5,12 +5,37 @@ export interface HealthResponse {
   as_of: string; // 기준시각 (NFR-04)
 }
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(path);
+export interface Settings {
+  watch_folder: string;
+  watch_enabled: boolean;
+  refresh_time: string;
+}
+
+export interface SecretItem {
+  key: string;
+  masked: string;
+}
+
+async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
   if (!res.ok) throw new Error(`API ${path} 실패: ${res.status}`);
   return res.json() as Promise<T>;
 }
 
 export const api = {
-  health: () => get<HealthResponse>("/api/health"),
+  health: () => req<HealthResponse>("/api/health"),
+  getSettings: () => req<Settings>("/api/settings"),
+  updateSettings: (s: Partial<Settings>) =>
+    req<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(s) }),
+  listSecrets: () => req<SecretItem[]>("/api/settings/secrets"),
+  setSecret: (key: string, value: string) =>
+    req<{ ok: boolean }>(`/api/settings/secrets/${key}`, {
+      method: "PUT",
+      body: JSON.stringify({ value }),
+    }),
+  deleteSecret: (key: string) =>
+    req<{ ok: boolean }>(`/api/settings/secrets/${key}`, { method: "DELETE" }),
 };
