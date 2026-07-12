@@ -4,11 +4,12 @@ from datetime import datetime
 from fastapi import FastAPI
 
 from backend.api.dashboard import router as dashboard_router
+from backend.api.journal import router as journal_router
 from backend.api.portfolio import router as portfolio_router
 from backend.api.settings import router as settings_router
 from backend.api.strategy import router as strategy_router
 
-APP_VERSION = "0.6.0"  # Phase 1 / T-10
+APP_VERSION = "0.7.0"  # Phase 2 / T-28
 
 
 def create_app() -> FastAPI:
@@ -17,6 +18,7 @@ def create_app() -> FastAPI:
     app.include_router(dashboard_router)
     app.include_router(portfolio_router)
     app.include_router(strategy_router)
+    app.include_router(journal_router)
 
     @app.on_event("startup")
     def _start_background():

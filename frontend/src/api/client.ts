@@ -67,6 +67,17 @@ export interface JobLogItem {
   message: string;
 }
 
+export interface JournalTx {
+  id: number; ticker: string; side: "buy" | "sell"; qty: number; price: number;
+  executed_at: string; realized_pnl: number | null; note: string;
+}
+
+export interface JournalStats {
+  sell_count: number; total_realized_pnl: number; win_rate_pct: number;
+  payoff_ratio: number | null;
+  monthly: { month: string; realized_pnl: number }[];
+}
+
 export interface SecretItem {
   key: string;
   masked: string;
@@ -89,6 +100,17 @@ export const api = {
   getSettings: () => req<Settings>("/api/settings"),
   updateSettings: (s: Partial<Settings>) =>
     req<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(s) }),
+  uploadTrades: async (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/journal/upload", { method: "POST", body: fd });
+    if (!res.ok) throw new Error(String(res.status));
+    return res.json() as Promise<{ imported: number }>;
+  },
+  getTransactions: () => req<JournalTx[]>("/api/journal/transactions"),
+  setTxNote: (id: number, note: string) =>
+    req<{ ok: boolean }>(`/api/journal/transactions/${id}/note`, { method: "PUT", body: JSON.stringify({ note }) }),
+  getJournalStats: () => req<JournalStats>("/api/journal/stats"),
   getStrategy: () => req<StrategyData>("/api/strategy"),
   setPersona: (persona: string) =>
     req<StrategyData>("/api/strategy/persona", { method: "PUT", body: JSON.stringify({ persona }) }),
