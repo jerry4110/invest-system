@@ -113,6 +113,11 @@ export const api = {
   getColumnMap: () => req<Record<string, string>>("/api/portfolio/column-map"),
   setColumnMap: (m: Record<string, string>) =>
     req<{ ok: boolean }>("/api/portfolio/column-map", { method: "PUT", body: JSON.stringify(m) }),
+  getLlmUsage: () =>
+    req<{ month_cost_usd: number; limit_usd: number; remaining_usd: number; calls: number }>(
+      "/api/settings/llm-usage"),
+  setLlmLimit: (limit_usd: number) =>
+    req<{ ok: boolean }>("/api/settings/llm-limit", { method: "PUT", body: JSON.stringify({ limit_usd }) }),
   getJobHistory: () => req<JobLogItem[]>("/api/settings/jobs"),
   listSecrets: () => req<SecretItem[]>("/api/settings/secrets"),
   setSecret: (key: string, value: string) =>

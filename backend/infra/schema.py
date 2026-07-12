@@ -129,3 +129,15 @@ class Transaction(Base):
     executed_at: Mapped[datetime] = mapped_column(DateTime)
     realized_pnl: Mapped[float] = mapped_column(Float, nullable=True)
     note: Mapped[str] = mapped_column(Text, default="")        # 판단 근거 (FR-06-03)
+
+
+class LlmUsage(Base):
+    """LLM 호출 비용 기록 (T-21, D-015 월 상한 가드)."""
+    __tablename__ = "llm_usage"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime, index=True)
+    model: Mapped[str] = mapped_column(String(50))
+    prompt_name: Mapped[str] = mapped_column(String(80))
+    input_tokens: Mapped[int] = mapped_column(Integer)
+    output_tokens: Mapped[int] = mapped_column(Integer)
+    cost_usd: Mapped[float] = mapped_column(Float)

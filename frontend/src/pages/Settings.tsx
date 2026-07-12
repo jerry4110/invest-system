@@ -20,12 +20,15 @@ export default function Settings() {
   const [colMap, setColMap] = useState<Record<string, string>>({});
   const [scanMsg, setScanMsg] = useState("");
   const [jobs, setJobs] = useState<JobLogItem[]>([]);
+  const [llm, setLlm] = useState<{ month_cost_usd: number; limit_usd: number; remaining_usd: number; calls: number } | null>(null);
+  const [limitInput, setLimitInput] = useState("");
 
   const load = () => {
     api.getSettings().then(setSettings).catch(() => setMsg("설정을 불러오지 못했습니다"));
     api.listSecrets().then(setSecrets).catch(() => {});
     api.getColumnMap().then(setColMap).catch(() => {});
     api.getJobHistory().then(setJobs).catch(() => {});
+    api.getLlmUsage().then(setLlm).catch(() => {});
   };
   useEffect(load, []);
 
@@ -111,6 +114,31 @@ export default function Settings() {
             onChange={(e) => setNewValue(e.target.value)} style={{ padding: 8 }} />
           <button onClick={addSecret}>추가</button>
         </div>
+      </div>
+
+      <div style={box}>
+        <h3>🤖 AI 사용량 (월 상한 — D-015)</h3>
+        {llm ? (
+          <div style={{ fontSize: 14 }}>
+            이번 달 <b>${llm.month_cost_usd.toFixed(2)}</b> / ${llm.limit_usd.toFixed(0)} 사용
+            (호출 {llm.calls}회, 잔여 ${llm.remaining_usd.toFixed(2)})
+            <div style={{ background: "#f1f5f9", borderRadius: 4, height: 8, maxWidth: 300, marginTop: 6 }}>
+              <div style={{ width: `${Math.min(llm.month_cost_usd / llm.limit_usd * 100, 100)}%`,
+                background: llm.month_cost_usd / llm.limit_usd > 0.8 ? "#dc2626" : "#2563eb",
+                height: 8, borderRadius: 4 }} />
+            </div>
+            <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: 13 }}>상한 변경($):</span>
+              <input value={limitInput} onChange={(e) => setLimitInput(e.target.value)}
+                placeholder={String(llm.limit_usd)} style={{ padding: 6, width: 80 }} />
+              <button onClick={async () => {
+                await api.setLlmLimit(Number(limitInput) || llm.limit_usd);
+                setLimitInput("");
+                api.getLlmUsage().then(setLlm);
+              }}>저장</button>
+            </div>
+          </div>
+        ) : <p style={{ fontSize: 13, color: "#666" }}>아직 AI 호출이 없습니다 (Phase 2 종목분석에서 사용).</p>}
       </div>
 
       <div style={box}>

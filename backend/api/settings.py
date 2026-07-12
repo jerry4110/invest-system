@@ -65,3 +65,23 @@ def job_history():
                         if r.finished_at else None,
         "message": r.message,
     } for r in rows]
+
+
+class LlmLimitBody(BaseModel):
+    limit_usd: float
+
+
+@router.get("/llm-usage")
+def llm_usage():
+    """LLM 월 사용량·상한 (D-015)."""
+    from backend.services import llm_service
+    return llm_service.get_usage_summary()
+
+
+@router.put("/llm-limit")
+def put_llm_limit(body: LlmLimitBody):
+    if body.limit_usd < 0:
+        raise HTTPException(422, "상한은 0 이상이어야 합니다")
+    from backend.services import llm_service
+    llm_service.set_monthly_limit(body.limit_usd)
+    return {"ok": True, "limit_usd": body.limit_usd}

@@ -54,11 +54,11 @@ def test_budget_guard_blocks_over_limit(fresh):
     from backend.services import llm_service
     from backend.services.llm_service import BudgetExceeded
 
-    llm_service.set_monthly_limit(0.03)
+    llm_service.set_monthly_limit(0.02)
     kw = dict(adapter=FakeAdapter(), ticker="t", name="n", context="c", strategy="s")
-    llm_service.guarded_complete("qualitative_factors", **kw)   # 누계 0.02 < 0.03
+    llm_service.guarded_complete("qualitative_factors", **kw)   # 사전 누계 0 < 0.02 → 허용
     with pytest.raises(BudgetExceeded, match="상한"):
-        llm_service.guarded_complete("qualitative_factors", **kw)  # 0.02 >= 0.03 차단
+        llm_service.guarded_complete("qualitative_factors", **kw)  # 누계 0.02 >= 0.02 → 차단
 
 
 def test_usage_summary_current_month_only(fresh):
