@@ -1,12 +1,14 @@
 // T-04 수용 기준(프론트): 지표 카드 렌더링·갱신 버튼 (Codex 리뷰 Major 반영 — Vitest 도입)
-import { render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Dashboard from "../pages/Dashboard";
 
 const indicator = (code: string, name: string) => ({
   code, name, category: "index", value: 1234.56, change_pct: -1.23,
   date: "2026-07-12", as_of: "2026-07-12T08:00:00", spark: [1, 2, 3],
 });
+
+afterEach(cleanup);
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async (url: string) => ({

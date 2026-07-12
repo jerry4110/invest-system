@@ -11,6 +11,23 @@ export interface Settings {
   refresh_time: string;
 }
 
+export interface Indicator {
+  code: string;
+  name: string;
+  category: "index" | "macro";
+  value: number;
+  change_pct: number;
+  date: string;
+  as_of: string; // 기준시각 (NFR-04)
+  spark: number[];
+}
+
+export interface RefreshResult {
+  ok: number;
+  failed: string[];
+  as_of: string;
+}
+
 export interface SecretItem {
   key: string;
   masked: string;
@@ -27,6 +44,8 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => req<HealthResponse>("/api/health"),
+  getIndicators: () => req<Indicator[]>("/api/dashboard/indicators"),
+  refreshIndicators: () => req<RefreshResult>("/api/dashboard/refresh", { method: "POST" }),
   getSettings: () => req<Settings>("/api/settings"),
   updateSettings: (s: Partial<Settings>) =>
     req<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(s) }),
