@@ -28,6 +28,20 @@ export interface RefreshResult {
   as_of: string;
 }
 
+export interface HoldingRow {
+  account: string; name: string; ticker: string; market: string;
+  qty: number; avg_price: number; buy_amount: number; cur_price: number;
+  eval_amount: number; pnl_amount: number; pnl_pct: number; weight_pct: number;
+  as_of: string;
+}
+
+export interface PortfolioData {
+  holdings: HoldingRow[];
+  totals: { buy_amount: number; eval_amount: number; pnl_amount: number;
+            pnl_pct: number; cash: number; total_asset: number };
+  as_of: string | null;
+}
+
 export interface SecretItem {
   key: string;
   masked: string;
@@ -49,6 +63,9 @@ export const api = {
   getSettings: () => req<Settings>("/api/settings"),
   updateSettings: (s: Partial<Settings>) =>
     req<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(s) }),
+  getHoldings: () => req<PortfolioData>("/api/portfolio/holdings"),
+  setCash: (amount: number) =>
+    req<{ ok: boolean }>("/api/portfolio/cash", { method: "PUT", body: JSON.stringify({ amount }) }),
   scanBalanceFolder: () => req<{ imported: number; folder: string }>("/api/portfolio/scan", { method: "POST" }),
   getColumnMap: () => req<Record<string, string>>("/api/portfolio/column-map"),
   setColumnMap: (m: Record<string, string>) =>
