@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { api, SecretItem, Settings as SettingsType } from "../api/client";
 
+const MAP_FIELDS: [string, string][] = [
+  ["name", "종목명"], ["ticker", "종목코드"], ["qty", "보유수량"], ["avg_price", "매입평균가"],
+  ["buy_amount", "매입금액"], ["cur_price", "현재가"], ["eval_amount", "평가금액"],
+  ["pnl_amount", "평가손익"], ["pnl_pct", "수익률"],
+];
+
 const box = { border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 } as const;
 const label = { display: "block", fontSize: 13, color: "#555", marginBottom: 4 } as const;
 const input = { width: "100%", maxWidth: 420, padding: 8, marginBottom: 12 } as const;
@@ -11,10 +17,13 @@ export default function Settings() {
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
   const [msg, setMsg] = useState("");
+  const [colMap, setColMap] = useState<Record<string, string>>({});
+  const [scanMsg, setScanMsg] = useState("");
 
   const load = () => {
     api.getSettings().then(setSettings).catch(() => setMsg("설정을 불러오지 못했습니다"));
     api.listSecrets().then(setSecrets).catch(() => {});
+    api.getColumnMap().then(setColMap).catch(() => {});
   };
   useEffect(load, []);
 
@@ -46,8 +55,32 @@ export default function Settings() {
         <label style={{ display: "block", marginBottom: 12 }}>
           <input type="checkbox" checked={settings.watch_enabled}
             onChange={(e) => setSettings({ ...settings, watch_enabled: e.target.checked })} />
-          {" "}폴더 감시 활성화
+          {" "}폴더 감시 활성화 (15초 간격 자동 인식)
         </label>
+        <button onClick={async () => {
+          const r = await api.scanBalanceFolder();
+          setScanMsg(r.imported > 0 ? `✅ ${r.imported}개 파일 임포트됨` : "새 잔고 파일 없음");
+        }}>지금 폴더 스캔</button>
+        {scanMsg && <span style={{ marginLeft: 8, fontSize: 13 }}>{scanMsg}</span>}
+
+        <details style={{ marginTop: 12 }}>
+          <summary style={{ cursor: "pointer", fontSize: 14 }}>🧩 컬럼 매핑 (파일 인식 실패 시 실제 헤더명 지정)</summary>
+          <div style={{ marginTop: 8 }}>
+            {MAP_FIELDS.map(([field, label]) => (
+              <div key={field} style={{ display: "flex", gap: 8, marginBottom: 4, alignItems: "center" }}>
+                <span style={{ minWidth: 90, fontSize: 13 }}>{label}</span>
+                <input placeholder="(자동 인식)" value={colMap[field] ?? ""}
+                  onChange={(e) => setColMap({ ...colMap, [field]: e.target.value })}
+                  style={{ padding: 6, width: 180 }} />
+              </div>
+            ))}
+            <button style={{ marginTop: 4 }} onClick={async () => {
+              await api.setColumnMap(colMap);
+              setMsg("컬럼 매핑 저장됨 ✅");
+              setTimeout(() => setMsg(""), 2000);
+            }}>매핑 저장</button>
+          </div>
+        </details>
       </div>
 
       <div style={box}>

@@ -100,3 +100,22 @@ def test_parse_failure_keeps_old_data(session, tmp_path):
     portfolio_service.scan_watch_folder(str(watch))       # 예외 없이 격리
     with session() as s:
         assert s.query(Holding).count() == 2              # 기존 데이터 유지
+
+
+def test_upload_and_column_map_api(session, tmp_path):
+    """T-05 API: 파일 업로드·컬럼 매핑 저장/조회."""
+    from fastapi.testclient import TestClient
+    from backend import main as main_mod
+
+    client = TestClient(main_mod.create_app())
+    r = client.post("/api/portfolio/upload",
+                    files={"file": ("잔고.csv", CSV_STANDARD.encode("utf-8-sig"), "text/csv")})
+    assert r.status_code == 200 and r.json()["imported"] == 2
+
+    r = client.put("/api/portfolio/column-map", json={"name": "이름", "qty": "잔고수량"})
+    assert r.status_code == 200
+    assert client.get("/api/portfolio/column-map").json()["name"] == "이름"
+
+    r = client.post("/api/portfolio/upload",
+                    files={"file": ("bad.csv", b"x,y\n1,2\n", "text/csv")})
+    assert r.status_code == 422 and "컬럼" in r.json()["detail"]

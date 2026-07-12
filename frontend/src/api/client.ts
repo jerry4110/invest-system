@@ -49,6 +49,10 @@ export const api = {
   getSettings: () => req<Settings>("/api/settings"),
   updateSettings: (s: Partial<Settings>) =>
     req<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(s) }),
+  scanBalanceFolder: () => req<{ imported: number; folder: string }>("/api/portfolio/scan", { method: "POST" }),
+  getColumnMap: () => req<Record<string, string>>("/api/portfolio/column-map"),
+  setColumnMap: (m: Record<string, string>) =>
+    req<{ ok: boolean }>("/api/portfolio/column-map", { method: "PUT", body: JSON.stringify(m) }),
   listSecrets: () => req<SecretItem[]>("/api/settings/secrets"),
   setSecret: (key: string, value: string) =>
     req<{ ok: boolean }>(`/api/settings/secrets/${encodeURIComponent(key)}`, {
