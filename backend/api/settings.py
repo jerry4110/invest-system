@@ -114,3 +114,23 @@ def restore(filename: str):
         raise HTTPException(422, str(e))
     except FileNotFoundError as e:
         raise HTTPException(404, str(e))
+
+
+class ThresholdBody(BaseModel):
+    threshold_pct: float
+
+
+@router.get("/price-threshold")
+def get_price_threshold():
+    from backend.services import price_watch_service
+    return {"threshold_pct": price_watch_service.get_threshold()}
+
+
+@router.put("/price-threshold")
+def put_price_threshold(body: ThresholdBody):
+    """급등락 알림 임계값 (FR-08-06)."""
+    if not 0.5 <= body.threshold_pct <= 50:
+        raise HTTPException(422, "임계값은 0.5~50% 사이여야 합니다")
+    from backend.services import price_watch_service
+    price_watch_service.set_threshold(body.threshold_pct)
+    return {"ok": True}

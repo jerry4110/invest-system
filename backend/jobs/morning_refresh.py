@@ -70,6 +70,11 @@ def run(fetchers=None) -> dict:
             donchian_service.daily_check()
         except Exception as e:
             problems.append(f"Donchian 점검 오류: {e}")
+        try:
+            from backend.services import price_watch_service
+            price_watch_service.check_price_moves()
+        except Exception as e:
+            problems.append(f"급등락 감시 오류: {e}")
         status = "partial" if problems else "success"
     except Exception as e:
         status = "failed"

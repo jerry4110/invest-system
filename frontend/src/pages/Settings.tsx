@@ -22,6 +22,7 @@ export default function Settings() {
   const [jobs, setJobs] = useState<JobLogItem[]>([]);
   const [llm, setLlm] = useState<{ month_cost_usd: number; limit_usd: number; remaining_usd: number; calls: number } | null>(null);
   const [limitInput, setLimitInput] = useState("");
+  const [threshold, setThreshold] = useState<number>(5);
   const [backups, setBackups] = useState<{ filename: string; size_kb: number; created_at: string }[]>([]);
 
   const load = () => {
@@ -30,6 +31,7 @@ export default function Settings() {
     api.getColumnMap().then(setColMap).catch(() => {});
     api.getJobHistory().then(setJobs).catch(() => {});
     api.getLlmUsage().then(setLlm).catch(() => {});
+    fetch("/api/settings/price-threshold").then((r) => r.json()).then((b) => setThreshold(b.threshold_pct)).catch(() => {});
     fetch("/api/settings/backups").then((r) => r.json()).then(setBackups).catch(() => {});
   };
   useEffect(load, []);
@@ -119,6 +121,21 @@ export default function Settings() {
       </div>
 
       <div style={box}>
+        <h3>⚡ 급등락 알림 임계값</h3>
+        <label style={{ fontSize: 13 }}>보유종목 전일 대비 ±
+          <input type="number" step="0.5" value={threshold ?? ""}
+            onChange={(e) => setThreshold(Number(e.target.value))}
+            style={{ width: 70, padding: 6, margin: "0 4px" }} />% 이상이면 알림
+        </label>
+        <button style={{ marginLeft: 8 }} onClick={async () => {
+          const r = await fetch("/api/settings/price-threshold", {
+            method: "PUT", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ threshold_pct: threshold }) });
+          setMsg(r.ok ? "임계값 저장됨 ✅" : "❌ 저장 실패 (0.5~50%)");
+        }}>저장</button>
+      </div>
+
+      <div style={box}>
         <h3>🤖 AI 사용량 (월 상한 — D-015)</h3>
         {llm ? (
           <div style={{ fontSize: 14 }}>
@@ -169,7 +186,8 @@ export default function Settings() {
           const r = await fetch("/api/settings/backup", { method: "POST" });
           const b = await r.json();
           setMsg(r.ok ? `백업 생성됨: ${b.filename} ✅` : `❌ ${b.detail}`);
-          fetch("/api/settings/backups").then((x) => x.json()).then(setBackups);
+          fetch("/api/settings/price-threshold").then((r) => r.json()).then((b) => setThreshold(b.threshold_pct)).catch(() => {});
+    fetch("/api/settings/backups").then((x) => x.json()).then(setBackups);
         }}>지금 백업</button>
         <ul style={{ fontSize: 13, marginTop: 8 }}>
           {backups.map((b) => (
