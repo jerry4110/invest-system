@@ -65,6 +65,11 @@ def run(fetchers=None) -> dict:
             portfolio_service.save_snapshot()
         except Exception as e:
             problems.append(f"스냅샷 오류: {e}")
+        try:
+            from backend.services import donchian_service
+            donchian_service.daily_check()
+        except Exception as e:
+            problems.append(f"Donchian 점검 오류: {e}")
         status = "partial" if problems else "success"
     except Exception as e:
         status = "failed"

@@ -30,6 +30,9 @@ export default function Simulation() {
   const [runs, setRuns] = useState<RunItem[]>([]);
   const [name, setName] = useState("");
   const [msg, setMsg] = useState("");
+  const [dc, setDc] = useState({ entry_n: 20, exit_n: 10, stop_pct: 8 });
+  const [dcBusy, setDcBusy] = useState(false);
+  const [todaySignal, setTodaySignal] = useState<string>("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadRuns = () => fetch("/api/backtest/runs").then((r) => r.json()).then(setRuns).catch(() => {});
@@ -84,6 +87,41 @@ export default function Simulation() {
           <p style={{ fontSize: 12, color: "#d97706" }}>⚠️ {result.disclaimer}</p>
         </>
       )}
+
+      <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, margin: "16px 0" }}>
+        <h3 style={{ marginTop: 0 }}>📈 Donchian Channel 전략 (코스피)</h3>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
+          <label>진입 채널 <input type="number" value={dc.entry_n} style={{ width: 60, padding: 4 }}
+            onChange={(e) => setDc({ ...dc, entry_n: Number(e.target.value) })} />일</label>
+          <label>청산 채널 <input type="number" value={dc.exit_n} style={{ width: 60, padding: 4 }}
+            onChange={(e) => setDc({ ...dc, exit_n: Number(e.target.value) })} />일</label>
+          <label>스탑로스 -<input type="number" value={dc.stop_pct} style={{ width: 50, padding: 4 }}
+            onChange={(e) => setDc({ ...dc, stop_pct: Number(e.target.value) })} />%</label>
+          <button disabled={dcBusy} onClick={async () => {
+            setDcBusy(true);
+            try {
+              const res = await fetch("/api/donchian/backtest", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ticker: "KOSPI", ...dc }) });
+              const body = await res.json();
+              if (!res.ok) throw new Error(body.detail);
+              setResult({ ...body, name: `Donchian 코스피`, start: body.curve[0]?.date ?? "",
+                          end: body.curve[body.curve.length - 1]?.date ?? "" });
+              loadRuns();
+            } catch (e) { setMsg(`❌ ${e instanceof Error ? e.message : "실패"}`); }
+            finally { setDcBusy(false); }
+          }}>{dcBusy ? "실행 중…" : "코스피 2년 백테스트"}</button>
+          <button onClick={async () => {
+            const res = await fetch("/api/donchian/check-now", { method: "POST" });
+            const b = await res.json();
+            setTodaySignal(res.ok ? `${b.signal ?? "시그널 없음"} — ${b.reason}` : `❌ ${b.detail}`);
+          }}>오늘 시그널 확인</button>
+          {todaySignal && <span>{todaySignal}</span>}
+        </div>
+        <p style={{ fontSize: 12, color: "#888", marginBottom: 0 }}>
+          매일 아침 배치가 자동 감시하며, 시그널 발생 시 알림센터·Windows 토스트로 통지합니다.
+        </p>
+      </div>
 
       {runs.length > 0 && (
         <>
