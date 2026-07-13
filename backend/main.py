@@ -7,6 +7,7 @@ from backend.api.alerts import router as alerts_router
 from backend.api.analysis import router as analysis_router
 from backend.api.backtest import router as backtest_router
 from backend.api.donchian import router as donchian_router
+from backend.api.f13 import router as f13_router
 from backend.api.dashboard import router as dashboard_router
 from backend.api.journal import router as journal_router
 from backend.api.portfolio import router as portfolio_router
@@ -29,6 +30,7 @@ def create_app() -> FastAPI:
     app.include_router(alerts_router)
     app.include_router(backtest_router)
     app.include_router(donchian_router)
+    app.include_router(f13_router)
 
     @app.on_event("startup")
     def _start_background():

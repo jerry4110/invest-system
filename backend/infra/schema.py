@@ -187,3 +187,11 @@ class BacktestRun(Base):
     metrics_json: Mapped[str] = mapped_column(Text)
     curve_json: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
+class Institution(Base):
+    """13F 추적 기관 (FR-07-22)."""
+    __tablename__ = "institution"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    cik: Mapped[str] = mapped_column(String(20))

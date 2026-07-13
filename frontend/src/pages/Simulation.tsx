@@ -33,10 +33,16 @@ export default function Simulation() {
   const [dc, setDc] = useState({ entry_n: 20, exit_n: 10, stop_pct: 8 });
   const [dcBusy, setDcBusy] = useState(false);
   const [todaySignal, setTodaySignal] = useState<string>("");
+  const [insts, setInsts] = useState<{ id: number; name: string; cik: string }[]>([]);
+  const [f13, setF13] = useState<{ period: string; source: string;
+    top_holdings: { issuer: string; weight_pct: number; value: number }[];
+    changes: { issuer: string; change: string }[] } | null>(null);
+  const [f13Busy, setF13Busy] = useState(false);
+  const [newInst, setNewInst] = useState({ name: "", cik: "" });
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadRuns = () => fetch("/api/backtest/runs").then((r) => r.json()).then(setRuns).catch(() => {});
-  useEffect(() => { loadRuns(); }, []);
+  useEffect(() => { loadRuns(); fetch("/api/13f/institutions").then((r) => r.json()).then(setInsts).catch(() => {}); }, []);
 
   const metricCards = (m: Metrics) => [
     ["누적수익률", fmt(m.cumulative_return_pct, "%")], ["CAGR", fmt(m.cagr_pct, "%")],
@@ -121,6 +127,59 @@ export default function Simulation() {
         <p style={{ fontSize: 12, color: "#888", marginBottom: 0 }}>
           매일 아침 배치가 자동 감시하며, 시그널 발생 시 알림센터·Windows 토스트로 통지합니다.
         </p>
+      </div>
+
+      <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, margin: "16px 0" }}>
+        <h3 style={{ marginTop: 0 }}>🏛️ 13F 기관 포트폴리오 (출처: SEC EDGAR)</h3>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontSize: 13 }}>
+          {insts.map((i) => (
+            <button key={i.id} disabled={f13Busy} onClick={async () => {
+              setF13Busy(true);
+              try {
+                const res = await fetch(`/api/13f/${i.cik}`);
+                const b = await res.json();
+                if (!res.ok) throw new Error(b.detail);
+                setF13(b);
+              } catch (e) { setMsg(`❌ ${e instanceof Error ? e.message : "실패"}`); }
+              finally { setF13Busy(false); }
+            }}>{f13Busy ? "조회 중…" : i.name}</button>
+          ))}
+          <input placeholder="기관명" value={newInst.name} style={{ padding: 6, width: 120 }}
+            onChange={(e) => setNewInst({ ...newInst, name: e.target.value })} />
+          <input placeholder="CIK (숫자)" value={newInst.cik} style={{ padding: 6, width: 100 }}
+            onChange={(e) => setNewInst({ ...newInst, cik: e.target.value })} />
+          <button onClick={async () => {
+            const r = await fetch("/api/13f/institutions", { method: "POST",
+              headers: { "Content-Type": "application/json" }, body: JSON.stringify(newInst) });
+            if (r.ok) { setNewInst({ name: "", cik: "" });
+              fetch("/api/13f/institutions").then((x) => x.json()).then(setInsts); }
+            else setMsg("❌ CIK는 숫자여야 합니다");
+          }}>기관 추가</button>
+        </div>
+        {f13 && (
+          <div style={{ marginTop: 10 }}>
+            <b>상위 10 보유 ({f13.period} 기준)</b>
+            <table style={{ borderCollapse: "collapse", fontSize: 13, marginTop: 4 }}>
+              <tbody>
+                {f13.top_holdings.map((h, i) => (
+                  <tr key={h.issuer}>
+                    <td style={{ padding: "3px 10px", color: "#888" }}>{i + 1}</td>
+                    <td style={{ padding: "3px 10px" }}>{h.issuer}</td>
+                    <td style={{ padding: "3px 10px", fontWeight: 600 }}>{h.weight_pct}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {f13.changes.filter((c) => c.change !== "유지").length > 0 && (
+              <p style={{ fontSize: 13 }}>
+                <b>분기 변동:</b>{" "}
+                {f13.changes.filter((c) => c.change !== "유지").slice(0, 10)
+                  .map((c) => `${c.issuer}(${c.change})`).join(", ")}
+              </p>
+            )}
+            <p style={{ fontSize: 12, color: "#888" }}>{f13.source}</p>
+          </div>
+        )}
       </div>
 
       {runs.length > 0 && (
