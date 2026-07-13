@@ -15,7 +15,7 @@ def _curve(values, start=date(2024, 1, 1), step_days=1):
 
 def test_cumulative_and_cagr_known_example():
     """100→200, 정확히 2년(730일) → 누적 100%, CAGR = √2-1 ≈ 41.42%."""
-    dates = [date(2024, 1, 1), date(2026, 1, 1)]
+    dates = [date(2024, 1, 1), date(2025, 12, 31)]   # 정확히 730일 = 2.0년
     m = metrics_from_equity(dates, [100.0, 200.0])
     assert m["cumulative_return_pct"] == 100.0
     assert m["cagr_pct"] == pytest.approx(41.42, abs=0.05)

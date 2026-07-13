@@ -49,8 +49,17 @@ def _clean_number(v) -> Decimal:
 def _read_raw(path: Path) -> pd.DataFrame:
     if path.suffix.lower() in (".xlsx", ".xls"):
         return pd.read_excel(path, header=None, dtype=str)
-    return pd.read_csv(path, header=None, dtype=str, encoding="utf-8-sig",
-                       skip_blank_lines=False)
+    try:
+        return pd.read_csv(path, header=None, dtype=str, encoding="utf-8-sig",
+                           skip_blank_lines=False)
+    except pd.errors.ParserError:
+        # 행마다 필드 수가 다른 경우 — csv 모듈로 직접 읽어 최대 폭 기준 정렬
+        import csv
+        with open(path, encoding="utf-8-sig", newline="") as f:
+            rows = list(csv.reader(f))
+        width = max((len(r) for r in rows), default=0)
+        padded = [r + [None] * (width - len(r)) for r in rows]
+        return pd.DataFrame(padded, dtype=str)
 
 
 def _find_header_row(df: pd.DataFrame, mapping: dict[str, str] | None) -> tuple[int, dict[str, int]]:

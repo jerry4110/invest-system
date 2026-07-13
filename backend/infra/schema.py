@@ -175,3 +175,15 @@ class Alert(Base):
     body: Mapped[str] = mapped_column(Text, default="")
     read: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
+class BacktestRun(Base):
+    """백테스트 시나리오 (FR-07-05)."""
+    __tablename__ = "backtest_run"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    strategy: Mapped[str] = mapped_column(String(30))       # buyhold | donchian
+    params_json: Mapped[str] = mapped_column(Text, default="{}")
+    metrics_json: Mapped[str] = mapped_column(Text)
+    curve_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)

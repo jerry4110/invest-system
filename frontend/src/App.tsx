@@ -7,6 +7,7 @@ import Journal from "./pages/Journal";
 import Analysis from "./pages/Analysis";
 import Reports from "./pages/Reports";
 import Alerts from "./pages/Alerts";
+import Simulation from "./pages/Simulation";
 import { useEffect, useState } from "react";
 
 const navStyle = ({ isActive }: { isActive: boolean }) => ({
@@ -35,6 +36,7 @@ export default function App() {
         <NavLink to="/strategy" style={navStyle}>🎯 투자전략</NavLink>
         <NavLink to="/analysis" style={navStyle}>🔍 종목분석</NavLink>
         <NavLink to="/journal" style={navStyle}>📓 투자저널</NavLink>
+        <NavLink to="/simulation" style={navStyle}>🧪 시뮬레이션</NavLink>
         <NavLink to="/alerts" style={navStyle}>🔔 알림{unread > 0 && <span style={{ background: "#dc2626", color: "#fff", borderRadius: 10, padding: "0 6px", fontSize: 11, marginLeft: 4 }}>{unread}</span>}</NavLink>
         <NavLink to="/reports" style={navStyle}>📄 리포트</NavLink>
         <NavLink to="/settings" style={navStyle}>⚙️ 설정</NavLink>
@@ -45,6 +47,7 @@ export default function App() {
         <Route path="/strategy" element={<Strategy />} />
         <Route path="/analysis" element={<Analysis />} />
         <Route path="/journal" element={<Journal />} />
+        <Route path="/simulation" element={<Simulation />} />
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Settings />} />

@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from backend.api.alerts import router as alerts_router
 from backend.api.analysis import router as analysis_router
+from backend.api.backtest import router as backtest_router
 from backend.api.dashboard import router as dashboard_router
 from backend.api.journal import router as journal_router
 from backend.api.portfolio import router as portfolio_router
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
     app.include_router(analysis_router)
     app.include_router(reports_router)
     app.include_router(alerts_router)
+    app.include_router(backtest_router)
 
     @app.on_event("startup")
     def _start_background():
