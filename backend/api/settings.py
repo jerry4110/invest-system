@@ -85,3 +85,32 @@ def put_llm_limit(body: LlmLimitBody):
     from backend.services import llm_service
     llm_service.set_monthly_limit(body.limit_usd)
     return {"ok": True, "limit_usd": body.limit_usd}
+
+
+@router.post("/backup")
+def create_backup():
+    """DB 백업 생성 (FR-10-05)."""
+    from backend.services import backup_service
+    try:
+        return backup_service.create_backup()
+    except FileNotFoundError as e:
+        raise HTTPException(404, str(e))
+
+
+@router.get("/backups")
+def list_backups():
+    from backend.services import backup_service
+    return backup_service.list_backups()
+
+
+@router.post("/restore/{filename}")
+def restore(filename: str):
+    """백업 복원 — 현재 데이터를 백업 시점으로 되돌립니다."""
+    from backend.services import backup_service
+    try:
+        backup_service.restore_backup(filename)
+        return {"ok": True}
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(404, str(e))

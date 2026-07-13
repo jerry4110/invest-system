@@ -22,6 +22,7 @@ export default function Settings() {
   const [jobs, setJobs] = useState<JobLogItem[]>([]);
   const [llm, setLlm] = useState<{ month_cost_usd: number; limit_usd: number; remaining_usd: number; calls: number } | null>(null);
   const [limitInput, setLimitInput] = useState("");
+  const [backups, setBackups] = useState<{ filename: string; size_kb: number; created_at: string }[]>([]);
 
   const load = () => {
     api.getSettings().then(setSettings).catch(() => setMsg("설정을 불러오지 못했습니다"));
@@ -29,6 +30,7 @@ export default function Settings() {
     api.getColumnMap().then(setColMap).catch(() => {});
     api.getJobHistory().then(setJobs).catch(() => {});
     api.getLlmUsage().then(setLlm).catch(() => {});
+    fetch("/api/settings/backups").then((r) => r.json()).then(setBackups).catch(() => {});
   };
   useEffect(load, []);
 
@@ -159,6 +161,28 @@ export default function Settings() {
             </tbody>
           </table>
         )}
+      </div>
+
+      <div style={box}>
+        <h3>💾 데이터 백업 (FR-10-05)</h3>
+        <button onClick={async () => {
+          const r = await fetch("/api/settings/backup", { method: "POST" });
+          const b = await r.json();
+          setMsg(r.ok ? `백업 생성됨: ${b.filename} ✅` : `❌ ${b.detail}`);
+          fetch("/api/settings/backups").then((x) => x.json()).then(setBackups);
+        }}>지금 백업</button>
+        <ul style={{ fontSize: 13, marginTop: 8 }}>
+          {backups.map((b) => (
+            <li key={b.filename}>
+              {b.filename} ({b.size_kb}KB)
+              <button style={{ marginLeft: 8, fontSize: 12 }} onClick={async () => {
+                if (!confirm(`${b.filename} 시점으로 복원할까요? 이후 변경사항은 사라집니다.`)) return;
+                const r = await fetch(`/api/settings/restore/${encodeURIComponent(b.filename)}`, { method: "POST" });
+                setMsg(r.ok ? "복원 완료 ✅ — 페이지를 새로고침하세요" : "❌ 복원 실패");
+              }}>복원</button>
+            </li>
+          ))}
+        </ul>
       </div>
 
       <button onClick={save} style={{ padding: "10px 24px", background: "#2563eb", color: "#fff", border: 0, borderRadius: 6 }}>
