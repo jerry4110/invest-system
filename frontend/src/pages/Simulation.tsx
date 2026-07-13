@@ -33,7 +33,7 @@ export default function Simulation() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadRuns = () => fetch("/api/backtest/runs").then((r) => r.json()).then(setRuns).catch(() => {});
-  useEffect(loadRuns, []);
+  useEffect(() => { loadRuns(); }, []);
 
   const metricCards = (m: Metrics) => [
     ["누적수익률", fmt(m.cumulative_return_pct, "%")], ["CAGR", fmt(m.cagr_pct, "%")],
