@@ -169,3 +169,71 @@ def report_path(report_id: int) -> Path | None:
         return None
     p = REPORT_DIR / r.relpath
     return p if p.exists() else None
+
+
+def generate_rebalance_report() -> dict:
+    """리밸런싱 리포트 (FR-05-17) — 최근 제안 이력 기반."""
+    import docx
+    from docx.shared import Pt
+    from datetime import date, datetime
+
+    proposal = _latest_history("PORTFOLIO", "rebalance")
+    if not proposal:
+        raise ValueError("리밸런싱 제안 이력이 없습니다 — 먼저 제안을 실행하세요")
+
+    doc = docx.Document()
+    today = date.today()
+    doc.add_heading("자산 리밸런싱 리포트", 0)
+    doc.add_paragraph(f"생성일: {today.isoformat()}")
+    doc.add_paragraph(_DISCLAIMER)
+
+    doc.add_heading("1. 목표 대비 이탈", 1)
+    t = doc.add_table(rows=1, cols=4)
+    t.style = "Light Grid Accent 1"
+    for i, h in enumerate(("항목", "현재", "목표", "이탈")):
+        t.rows[0].cells[i].text = h
+    for d in proposal.get("deviations", []):
+        row = t.add_row().cells
+        row[0].text = d["label"]
+        row[1].text = f"{d['current_pct']}%"
+        row[2].text = f"{d['target_pct']}%"
+        row[3].text = f"{d['deviation_pp']:+}%p"
+
+    doc.add_heading("2. 매매 제안", 1)
+    if proposal.get("summary"):
+        doc.add_paragraph(proposal["summary"])
+    t2 = doc.add_table(rows=1, cols=5)
+    t2.style = "Light Grid Accent 1"
+    for i, h in enumerate(("종목", "액션", "수량", "예상금액", "근거")):
+        t2.rows[0].cells[i].text = h
+    for a in proposal.get("actions", []):
+        row = t2.add_row().cells
+        row[0].text = f"{a.get('name')}({a.get('ticker')})"
+        row[1].text = a.get("action", "")
+        row[2].text = f"{a.get('qty', 0):,}"
+        row[3].text = f"{a.get('est_amount', 0):,}"
+        row[4].text = a.get("rationale", "")
+    if proposal.get("narrative"):
+        doc.add_paragraph(proposal["narrative"])
+
+    doc.add_heading("3. 실행 전/후 비중", 1)
+    for r in proposal.get("before_after", []):
+        doc.add_paragraph(f"{r['label']}: {r['before_pct']}% → {r['after_pct']}%")
+    for w in proposal.get("warnings", []):
+        doc.add_paragraph(f"⚠ 검증 경고: {w}")
+
+    p2 = doc.add_paragraph(_DISCLAIMER)
+    p2.runs[0].font.size = Pt(9)
+
+    month_dir = REPORT_DIR / today.strftime("%Y-%m")
+    month_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"rebalance_{today.isoformat()}_{datetime.now().strftime('%H%M%S')}.docx"
+    doc.save(month_dir / filename)
+    relpath = f"{today.strftime('%Y-%m')}/{filename}"
+    with get_session() as s:
+        rep = Report(ticker="PORTFOLIO", kind="rebalance", filename=filename,
+                     relpath=relpath, created_at=datetime.now())
+        s.add(rep)
+        s.commit()
+        rid = rep.id
+    return {"id": rid, "relpath": relpath}

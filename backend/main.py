@@ -8,6 +8,7 @@ from backend.api.analysis import router as analysis_router
 from backend.api.backtest import router as backtest_router
 from backend.api.donchian import router as donchian_router
 from backend.api.f13 import router as f13_router
+from backend.api.rebalance import router as rebalance_router
 from backend.api.dashboard import router as dashboard_router
 from backend.api.journal import router as journal_router
 from backend.api.portfolio import router as portfolio_router
@@ -15,7 +16,7 @@ from backend.api.reports import router as reports_router
 from backend.api.settings import router as settings_router
 from backend.api.strategy import router as strategy_router
 
-APP_VERSION = "0.10.0"  # Phase 3 / T-31
+APP_VERSION = "0.11.0"  # Phase 3 / T-36
 
 
 def create_app() -> FastAPI:
@@ -31,6 +32,7 @@ def create_app() -> FastAPI:
     app.include_router(backtest_router)
     app.include_router(donchian_router)
     app.include_router(f13_router)
+    app.include_router(rebalance_router)
 
     @app.on_event("startup")
     def _start_background():

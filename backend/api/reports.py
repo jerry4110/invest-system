@@ -19,6 +19,15 @@ def generate(ticker: str):
         raise HTTPException(429, str(e))
 
 
+@router.post("/rebalance")
+def generate_rebalance():
+    """리밸런싱 리포트 (FR-05-17)."""
+    try:
+        return report_service.generate_rebalance_report()
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
 @router.get("")
 def list_reports():
     return report_service.list_reports()
