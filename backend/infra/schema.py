@@ -2,7 +2,7 @@
 from datetime import datetime, date
 
 from sqlalchemy import (
-    Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text,
+    Boolean, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -163,4 +163,15 @@ class Report(Base):
     kind: Mapped[str] = mapped_column(String(20))   # stock | rebalance(Phase 3)
     filename: Mapped[str] = mapped_column(String(255))
     relpath: Mapped[str] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
+class Alert(Base):
+    """알림 (M8, FR-08-01~06, D-017)."""
+    __tablename__ = "alert"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(30), index=True)  # donchian|price_move|13f_update|batch_fail
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(Text, default="")
+    read: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)

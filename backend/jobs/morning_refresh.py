@@ -81,6 +81,11 @@ def run(fetchers=None) -> dict:
 
     if status != "success":
         _notify_failure(f"아침 배치 {status}: {message[:80]}")
+        try:
+            from backend.services.alert_service import create_alert
+            create_alert("batch_fail", f"아침 배치 {status}", message[:200], toast=False)
+        except Exception:
+            pass
     logger.info("배치 완료: %s (%s)", status, message)
     return {"status": status, "message": message,
             "duration_sec": (finished - started).total_seconds()}
