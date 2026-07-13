@@ -57,6 +57,13 @@ export default function Portfolio() {
         <h2 style={{ margin: 0 }}>포트폴리오</h2>
         <button onClick={() => scan(false)}>잔고 파일 스캔</button>
         <button onClick={() => scan(true)} style={{ fontSize: 12 }}>강제 재스캔</button>
+        <button style={{ fontSize: 12, color: "#dc2626" }} onClick={async () => {
+          if (!confirm("보유종목·예수금·계좌를 모두 삭제합니다. 이후 폴더 스캔으로 다시 불러옵니다. 계속할까요?")) return;
+          await fetch("/api/portfolio/reset", { method: "POST" });
+          const r = await api.scanBalanceFolder(true);
+          setMsg(r.imported ? `🔄 초기화 후 ${r.imported}개 파일 재적재 완료` : "🔄 초기화됨 — 감시 폴더에 파일이 없습니다");
+          load();
+        }}>전체 초기화+재적재</button>
         <a href="/api/portfolio/export.csv" download>CSV 내려받기</a>
         {as_of && (
           <span style={{ fontSize: 12, color: stale ? "#d97706" : "#888" }}>

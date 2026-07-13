@@ -10,7 +10,7 @@ from backend.infra.schema import Account, AppSetting, Holding
 
 logger = logging.getLogger(__name__)
 
-FILE_PATTERNS = ("잔고", "미래에셋", "balance")  # 파일명 인식 키워드
+# D-020: 전용 폴더(#Stock_Balance) 방식 — 폴더 내 모든 스프레드시트를 계좌 파일로 간주
 _PROCESSED_KEY = "processed_balance_files"
 
 
@@ -37,24 +37,64 @@ def _get_or_create_account(alias: str) -> int:
         return acc.id
 
 
-def import_balance_file(path: str | Path, account_alias: str = "미래에셋(파일)") -> int:
-    """잔고 파일 파싱 → holding 테이블 전량 교체 업서트. as_of는 파일 수정시각."""
+def _latest_usdkrw() -> float | None:
+    from backend.infra.schema import MarketIndicator
+    with get_session() as s:
+        row = (s.query(MarketIndicator).filter_by(code="USDKRW")
+               .order_by(MarketIndicator.date.desc()).first())
+    return row.value if row else None
+
+
+def import_balance_file(path: str | Path, account_alias: str | None = None) -> int:
+    """잔고 파일 파싱 → 해당 계좌의 보유·예수금 전량 교체.
+
+    - 계좌명 = 파일명(확장자 제외), 인자로 재정의 가능 (D-020)
+    - 현금성 행(통화·RP·현금성자산)은 예수금으로 분리 (KRW/USD)
+    - 해외주식 USD 금액은 최신 USDKRW 지표로 원화 환산 — 환율 미수집이면 명확히 실패
+    """
+    from decimal import Decimal
+    from backend.infra.schema import CashBalance
+
     path = Path(path)
+    alias = account_alias or path.stem.strip()
     holdings = parse_balance_file(path, mapping=get_column_mapping())
     as_of = datetime.fromtimestamp(path.stat().st_mtime)
-    account_id = _get_or_create_account(account_alias)
+    account_id = _get_or_create_account(alias)
+
+    cash_krw = sum(float(h.eval_amount) for h in holdings if h.market == "CASH_KRW")
+    cash_usd = sum(float(h.eval_amount) for h in holdings if h.market == "CASH_USD")
+    stock_rows = [h for h in holdings if not h.market.startswith("CASH")]
+
+    rate = None
+    if cash_usd or any(h.currency == "USD" for h in stock_rows):
+        rate = _latest_usdkrw()
+        if rate is None:
+            raise RuntimeError(
+                f"{path.name}: 해외(USD) 자산 환산에 필요한 환율(USDKRW)이 없습니다 — "
+                "대시보드 '업데이트'로 시장지표를 먼저 수집하세요")
+
     with get_session() as s:
         s.query(Holding).filter_by(account_id=account_id).delete()
-        for h in holdings:
+        s.query(CashBalance).filter_by(account_id=account_id).delete()
+        for h in stock_rows:
+            fx = Decimal(str(rate)) if h.currency == "USD" else Decimal(1)
             s.add(Holding(account_id=account_id, ticker=h.ticker, name=h.name,
-                          market=h.market, sector=h.sector, qty=h.qty, avg_price=h.avg_price,
-                          buy_amount=h.buy_amount, cur_price=h.cur_price,
-                          eval_amount=h.eval_amount, pnl_amount=h.pnl_amount,
+                          market=h.market, sector=h.sector, qty=h.qty,
+                          avg_price=h.avg_price * fx, buy_amount=h.buy_amount * fx,
+                          cur_price=h.cur_price * fx, eval_amount=h.eval_amount * fx,
+                          pnl_amount=h.pnl_amount * fx,
                           pnl_pct=h.pnl_pct, as_of=as_of))
+        if cash_krw:
+            s.add(CashBalance(account_id=account_id, currency="KRW",
+                              amount=cash_krw, as_of=as_of))
+        if cash_usd:
+            s.add(CashBalance(account_id=account_id, currency="USD",
+                              amount=cash_usd, as_of=as_of))
         s.commit()
-    logger.info("잔고 파일 임포트: %s (%d종목, 기준 %s)", path.name, len(holdings), as_of)
-    save_snapshot()  # 전일 대비 기반 (FR-02-02)
-    return len(holdings)
+    logger.info("잔고 임포트 [%s]: %d종목, 현금 KRW %.0f / USD %.2f",
+                alias, len(stock_rows), cash_krw, cash_usd)
+    save_snapshot()
+    return len(stock_rows)
 
 
 def _processed() -> set[str]:
@@ -91,8 +131,6 @@ def scan_watch_folder_detail(folder: str, force: bool = False) -> dict:
             continue
         if f.name.startswith("~$"):  # 엑셀 임시 잠금 파일
             continue
-        if not any(k in f.name.lower() or k in f.name for k in FILE_PATTERNS):
-            continue
         key = f"{f.name}:{f.stat().st_mtime_ns}"
         if not force and key in _processed():
             files.append({"file": f.name, "status": "skipped", "reason": "이미 처리됨"})
@@ -124,7 +162,15 @@ def get_holdings() -> dict:
     total_eval = sum(float(h.eval_amount) for h, _ in rows)
     total_buy = sum(float(h.buy_amount) for h, _ in rows)
     total_pnl = sum(float(h.pnl_amount) for h, _ in rows)
-    cash = sum(float(c.amount) for c in cash_rows)
+    cash = 0.0
+    usd_rate = None
+    for c in cash_rows:
+        if c.currency == "USD":
+            if usd_rate is None:
+                usd_rate = _latest_usdkrw() or 0.0
+            cash += float(c.amount) * usd_rate
+        else:
+            cash += float(c.amount)
     as_of = max((h.as_of for h, _ in rows), default=None)
 
     holdings = [{
@@ -313,3 +359,17 @@ def get_trend() -> list[dict]:
     return [{"date": r.date.isoformat(), "total_asset": float(r.total_asset),
              "total_eval": float(r.total_eval), "total_cash": float(r.total_cash)}
             for r in rows]
+
+
+def reset_all() -> None:
+    """전체 초기화 (D-020): 보유·예수금·계좌·파일 처리이력 삭제 — 재스캔으로 재적재."""
+    from backend.infra.schema import CashBalance
+    with get_session() as s:
+        s.query(Holding).delete()
+        s.query(CashBalance).delete()
+        s.query(Account).delete()
+        row = s.get(AppSetting, _PROCESSED_KEY)
+        if row:
+            s.delete(row)
+        s.commit()
+    logger.warning("포트폴리오 전체 초기화 완료")

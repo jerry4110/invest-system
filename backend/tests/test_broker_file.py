@@ -173,4 +173,5 @@ def test_scan_returns_detail_for_diagnosis(session, tmp_path):
     detail = portfolio_service.scan_watch_folder_detail(str(watch))
     assert detail["imported"] == 1
     assert any("잔고_bad" in f["file"] and f["status"] == "failed" for f in detail["files"])
-    assert not any("관계없는" in f["file"] for f in detail["files"])   # 패턴 불일치는 제외
+    # D-020: 전용 폴더 방식 — 모든 스프레드시트 처리 시도, 실패는 사유와 함께 보고
+    assert any("관계없는" in f["file"] and f["status"] == "failed" for f in detail["files"])

@@ -90,3 +90,10 @@ def returns():
 def trend():
     """자산 추이 (FR-03-26)."""
     return portfolio_service.get_trend()
+
+
+@router.post("/reset")
+def reset_all():
+    """포트폴리오 전체 초기화 (D-020) — 이후 폴더 스캔으로 재적재."""
+    portfolio_service.reset_all()
+    return {"ok": True}

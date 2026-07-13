@@ -20,7 +20,7 @@ class ParseError(Exception):
 HEADER_CANDIDATES: dict[str, list[str]] = {
     "name":        ["종목명", "종목", "상품명", "이름"],
     "ticker":      ["종목코드", "종목번호", "코드", "티커"],
-    "qty":         ["보유수량", "잔고수량", "수량", "보유주식수", "잔고"],
+    "qty":         ["보유수량", "잔고수량", "수량", "보유주식수", "잔고", "보유량"],
     "avg_price":   ["매입평균가", "평균단가", "매입단가", "평단가", "평균매입가"],
     "buy_amount":  ["매입금액", "매수금액", "투자금액", "매입원금"],
     "cur_price":   ["현재가", "현재가격", "시세", "종가"],
@@ -29,6 +29,7 @@ HEADER_CANDIDATES: dict[str, list[str]] = {
     "pnl_pct":     ["수익률", "수익률(%)", "손익률", "수익율"],
     "region":      ["지역", "시장", "국가", "시장구분"],
     "sector":      ["카테고리", "산업", "섹터", "업종"],
+    "asset_type":  ["유형", "자산유형", "상품유형"],
 }
 REQUIRED = {"name", "qty"}  # 최소 필수 — 나머지는 계산으로 보완
 
@@ -51,6 +52,10 @@ def _read_raw(path: Path) -> pd.DataFrame:
         return pd.read_excel(path, header=None, dtype=str)
     try:
         return pd.read_csv(path, header=None, dtype=str, encoding="utf-8-sig",
+                           skip_blank_lines=False)
+    except UnicodeDecodeError:
+        # 미래에셋 내보내기 기본 인코딩 cp949 (2026-07-13 실파일 확인)
+        return pd.read_csv(path, header=None, dtype=str, encoding="cp949",
                            skip_blank_lines=False)
     except pd.errors.ParserError:
         # 행마다 필드 수가 다른 경우 — csv 모듈로 직접 읽어 최대 폭 기준 정렬
@@ -79,6 +84,18 @@ def _find_header_row(df: pd.DataFrame, mapping: dict[str, str] | None) -> tuple[
         "잔고 파일에서 인식 가능한 컬럼을 찾지 못했습니다. "
         "설정 > 컬럼 매핑에서 파일의 실제 헤더명을 지정해 주세요. "
         f"(필수: 종목명·보유수량 / 인식 후보 예: {', '.join(HEADER_CANDIDATES['qty'])})")
+
+
+CASH_TYPES = ("통화", "원화RP", "RP", "예수금", "현금")
+CASH_NAME_KEYWORDS = ("현금성자산", "CMA", "RP_")
+
+
+def normalize_ticker(raw: str) -> str:
+    """미래에셋 종목번호 정규화: A005930 → 005930."""
+    t = raw.strip()
+    if len(t) == 7 and t[0].upper() == "A" and t[1:].isalnum() and any(c.isdigit() for c in t[1:]):
+        return t[1:]
+    return t
 
 
 def _classify_market(ticker: str, region: str) -> str:
@@ -113,8 +130,13 @@ def parse_balance_file(path: str | Path, mapping: dict[str, str] | None = None) 
         qty = _clean_number(get("qty"))
         if qty == 0:
             continue
+        asset_type = str(get("asset_type", "")).strip()
+        is_cash_row = (asset_type in CASH_TYPES
+                       or any(k in name for k in CASH_NAME_KEYWORDS))
         avg = _clean_number(get("avg_price"))
         buy = _clean_number(get("buy_amount")) or (qty * avg)
+        if avg == 0 and qty:
+            avg = buy / qty if buy else _clean_number(get("eval_amount")) / qty
         cur = _clean_number(get("cur_price"))
         ev = _clean_number(get("eval_amount")) or (qty * cur)
         pnl = _clean_number(get("pnl_amount")) or (ev - buy)
@@ -126,14 +148,22 @@ def parse_balance_file(path: str | Path, mapping: dict[str, str] | None = None) 
                 pct = float(_clean_number(get("pnl_pct")))
             except ParseError:
                 pct = 0.0
-        ticker = str(get("ticker", "")).strip()
+        ticker = normalize_ticker(str(get("ticker", "")))
         region = str(get("region", "")).strip()
-        market = _classify_market(ticker, region)
+        if is_cash_row:
+            market = "CASH_USD" if ticker.upper() == "USD" or "달러" in name else "CASH_KRW"
+        elif asset_type == "해외주식":
+            market = "OVERSEAS"
+        elif asset_type == "주식":
+            market = "KRX"
+        else:
+            market = _classify_market(ticker, region)
         holdings.append(HoldingDTO(name=name, ticker=ticker or name, qty=qty,
                                    avg_price=avg, buy_amount=buy, cur_price=cur,
                                    eval_amount=ev, pnl_amount=pnl, pnl_pct=pct,
                                    market=market,
-                                   sector=str(get("sector", "")).strip().replace("nan", "")))
+                                   sector=str(get("sector", "")).strip().replace("nan", ""),
+                                   currency="USD" if asset_type == "해외주식" else "KRW"))
     if not holdings:
         raise ParseError("파일에서 보유 종목을 찾지 못했습니다 — 컬럼 매핑을 확인해 주세요.")
     return holdings

@@ -20,6 +20,7 @@ class HoldingDTO:
     pnl_pct: float
     market: str = "UNKNOWN"
     sector: str = ""
+    currency: str = "KRW"   # 금액 통화 — 유형=해외주식(USD 표기)일 때만 USD
 
 
 class BrokerAdapter(ABC):

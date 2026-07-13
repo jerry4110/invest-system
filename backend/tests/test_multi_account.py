@@ -47,7 +47,8 @@ def test_cp949_format_b_parsing(fresh):
     assert "005930" in by                              # A005930 → 005930
     assert "0091P0" in by and by["0091P0"].market == "KRX"
     assert by["MU"].market == "OVERSEAS"               # 유형=해외주식
-    assert "USD" not in by and "CMARPC01" not in by    # 현금성은 보유종목에서 제외
+    assert by["USD"].market == "CASH_USD"              # 현금성은 CASH_* 마킹 (임포트 시 예수금 분리)
+    assert by["CMARPC01"].market == "CASH_KRW"
 
 
 def test_import_converts_usd_and_cash(fresh):
