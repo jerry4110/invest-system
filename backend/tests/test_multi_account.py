@@ -129,3 +129,32 @@ def test_usd_without_rate_fails_clearly(tmp_path, monkeypatch):
     path = _w(tmp_path, "주식계좌 9325.csv", FORMAT_B)
     with pytest.raises(Exception, match="환율"):
         portfolio_service.import_balance_file(path, account_alias="주식계좌 9325")
+
+
+def test_trades_file_rejected_as_balance(fresh):
+    """거래내역 파일이 잔고로 오인 임포트되지 않아야 한다 (2026-07-13 실사용 버그)."""
+    from backend.adapters.broker.file_upload import ParseError, parse_balance_file
+    trades = """거래일자,종목코드,종목명,구분,수량,단가,수수료
+2026-06-01,005930,삼성전자,매수,10,100000,50
+2026-06-20,005930,삼성전자,매도,5,300000,50
+"""
+    path = _w(fresh, "나의투자현황_20260514_test 거래내역.csv", trades)
+    with pytest.raises(ParseError, match="거래내역"):
+        parse_balance_file(path)
+
+
+def test_scan_reports_trades_file_as_failed(fresh):
+    """전용 폴더에 거래내역 파일이 섞여 있으면 실패 사유로 안내 (임포트 안 됨)."""
+    from backend.services import portfolio_service
+    from backend.infra.schema import Account
+    watch = fresh / "mixed"
+    watch.mkdir()
+    _w(watch, "IRP계좌.csv", FORMAT_A_IRP)
+    _w(watch, "테스트 거래내역.csv",
+       "거래일자,종목명,구분,수량,단가\n2026-06-01,삼성전자,매수,10,100000\n")
+    detail = portfolio_service.scan_watch_folder_detail(str(watch))
+    assert detail["imported"] == 1
+    bad = next(f for f in detail["files"] if "거래내역" in f["file"])
+    assert bad["status"] == "failed" and "거래내역" in bad["reason"]
+    with db_mod.get_session() as s:
+        assert {a.alias for a in s.query(Account).all()} == {"IRP계좌"}

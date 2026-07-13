@@ -113,9 +113,21 @@ def _classify_market(ticker: str, region: str) -> str:
     return "OVERSEAS" if ticker.isalpha() else "UNKNOWN"
 
 
+TRADE_FILE_HEADERS = ("거래일자", "체결일자", "주문일자", "거래일", "매매구분")
+
+
 def parse_balance_file(path: str | Path, mapping: dict[str, str] | None = None) -> list[HoldingDTO]:
     path = Path(path)
     df = _read_raw(path)
+
+    # 거래내역 파일 오인 방지 (2026-07-13 실사용 버그): 잔고에는 거래일자류 헤더가 없다
+    for i in range(min(len(df), 20)):
+        cells = {str(c).strip() for c in df.iloc[i] if not pd.isna(c)}
+        if cells & set(TRADE_FILE_HEADERS):
+            raise ParseError(
+                f"{path.name}: 거래내역 파일로 보입니다 — 잔고 폴더가 아닌 "
+                "투자저널 페이지에서 업로드하세요")
+
     header_row, col_idx = _find_header_row(df, mapping)
 
     holdings: list[HoldingDTO] = []
