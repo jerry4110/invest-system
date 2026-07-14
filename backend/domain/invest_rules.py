@@ -21,6 +21,7 @@ OVERSEAS_THEME_KEYWORDS = (
 # 종목명 강제 분류 (키워드보다 우선) — 예외 종목은 여기에 추가
 INVEST_OVERRIDES: dict[str, str] = {
     "KODEX 2차전지산업": "국내투자 국내 ETF",
+    "TIGER 코스닥글로벌": "국내투자 국내 ETF",   # '글로벌' 키워드 예외 — 국내 코스닥 지수 상품
     # 예) "KIWOOM K-반도체북미공급망": "국내투자 국내 ETF",  # '북미'는 키워드 미해당이라 불필요
 }
 
