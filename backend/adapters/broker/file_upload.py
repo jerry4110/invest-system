@@ -174,7 +174,9 @@ def parse_balance_file(path: str | Path, mapping: dict[str, str] | None = None) 
                                    avg_price=avg, buy_amount=buy, cur_price=cur,
                                    eval_amount=ev, pnl_amount=pnl, pnl_pct=pct,
                                    market=market,
-                                   sector=str(get("sector", "")).strip().replace("nan", ""),
+                                   sector=(str(get("sector", "")).strip().replace("nan", "")
+                                           or __import__("backend.adapters.broker.sector_map",
+                                                         fromlist=["infer_sector"]).infer_sector(name)),
                                    currency="USD" if asset_type == "해외주식" else "KRW"))
     if not holdings:
         raise ParseError("파일에서 보유 종목을 찾지 못했습니다 — 컬럼 매핑을 확인해 주세요.")

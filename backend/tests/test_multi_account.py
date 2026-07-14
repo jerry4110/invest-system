@@ -158,3 +158,23 @@ def test_scan_reports_trades_file_as_failed(fresh):
     assert bad["status"] == "failed" and "거래내역" in bad["reason"]
     with db_mod.get_session() as s:
         assert {a.alias for a in s.query(Account).all()} == {"IRP계좌"}
+
+
+def test_sector_inferred_from_name(fresh):
+    """카테고리 컬럼이 없는 파일: 종목명 키워드로 산업 추론 (미확실하면 미분류 — 추정 남발 금지)."""
+    from backend.adapters.broker.sector_map import infer_sector
+    assert infer_sector("SOL AI반도체소부장") == "반도체"
+    assert infer_sector("TIGER K방산&우주") == "방산·우주"
+    assert infer_sector("두산에너빌리티") == "전력·에너지"
+    assert infer_sector("삼성전자") == "반도체"
+    assert infer_sector("KODEX 구리선물(H)") == "원자재"
+    assert infer_sector("정체불명종목XYZ") == ""          # 모르면 빈 값 → 미분류
+
+
+def test_import_fills_inferred_sector(fresh):
+    from backend.services import portfolio_service
+    path = _w(fresh, "주식계좌 9325.csv", FORMAT_B)
+    portfolio_service.import_balance_file(path)
+    with db_mod.get_session() as s:
+        by = {h.ticker: h.sector for h in s.query(Holding).all()}
+    assert by["005930"] == "반도체"

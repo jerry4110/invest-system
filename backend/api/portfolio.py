@@ -50,6 +50,7 @@ def put_column_map(mapping: dict[str, str]):
 
 class CashBody(BaseModel):
     amount: float
+    account: str | None = None
 
 
 @router.get("/holdings")
@@ -62,7 +63,10 @@ def holdings():
 def put_cash(body: CashBody):
     if body.amount < 0:
         raise HTTPException(422, "예수금은 0 이상이어야 합니다")
-    portfolio_service.set_cash(body.amount)
+    if body.account:
+        portfolio_service.set_cash(body.amount, account_alias=body.account)
+    else:
+        portfolio_service.set_cash(body.amount)
     return {"ok": True}
 
 
@@ -97,3 +101,18 @@ def reset_all():
     """포트폴리오 전체 초기화 (D-020) — 이후 폴더 스캔으로 재적재."""
     portfolio_service.reset_all()
     return {"ok": True}
+
+
+@router.get("/by-account")
+def by_account():
+    """계좌별 카드 뷰 (2026-07-14 화면 개선)."""
+    return portfolio_service.get_by_account()
+
+
+@router.get("/grouped")
+def grouped(by: str):
+    """분류별 뷰: type(주식·ETF) | region(국내·해외) | sector(산업)."""
+    try:
+        return portfolio_service.get_grouped(by)
+    except ValueError as e:
+        raise HTTPException(422, str(e))

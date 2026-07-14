@@ -82,5 +82,5 @@ def test_grouped_views(client):
 
     g3 = client.get("/api/portfolio/grouped?by=sector").json()
     labels = {x["label"] for x in g3["groups"]}
-    assert "미분류" in labels                            # 산업 정보 없는 종목
+    assert "반도체" in labels                            # 종목명 키워드 추론 (카테고리 컬럼 없음)
     assert client.get("/api/portfolio/grouped?by=bad").status_code == 422

@@ -36,7 +36,13 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     def _start_background():
+        import os
         import threading
+
+        if os.environ.get("INVEST_DISABLE_BACKGROUND") == "1":
+            from backend.infra.db import init_db
+            init_db()
+            return  # 테스트: 감시·스케줄러·배치 보정 비활성 (네트워크 격리)
 
         from backend.infra.db import init_db
         from backend.infra.scheduler import start_scheduler

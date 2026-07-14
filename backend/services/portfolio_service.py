@@ -75,7 +75,7 @@ def import_balance_file(path: str | Path, account_alias: str | None = None) -> i
 
     with get_session() as s:
         s.query(Holding).filter_by(account_id=account_id).delete()
-        s.query(CashBalance).filter_by(account_id=account_id).delete()
+        s.query(CashBalance).filter_by(account_id=account_id, source="file").delete()
         for h in stock_rows:
             fx = Decimal(str(rate)) if h.currency == "USD" else Decimal(1)
             s.add(Holding(account_id=account_id, ticker=h.ticker, name=h.name,
@@ -86,10 +86,10 @@ def import_balance_file(path: str | Path, account_alias: str | None = None) -> i
                           pnl_pct=h.pnl_pct, as_of=as_of))
         if cash_krw:
             s.add(CashBalance(account_id=account_id, currency="KRW",
-                              amount=cash_krw, as_of=as_of))
+                              amount=cash_krw, source="file", as_of=as_of))
         if cash_usd:
             s.add(CashBalance(account_id=account_id, currency="USD",
-                              amount=cash_usd, as_of=as_of))
+                              amount=cash_usd, source="file", as_of=as_of))
         s.commit()
     logger.info("잔고 임포트 [%s]: %d종목, 현금 KRW %.0f / USD %.2f",
                 alias, len(stock_rows), cash_krw, cash_usd)
@@ -162,15 +162,15 @@ def get_holdings() -> dict:
     total_eval = sum(float(h.eval_amount) for h, _ in rows)
     total_buy = sum(float(h.buy_amount) for h, _ in rows)
     total_pnl = sum(float(h.pnl_amount) for h, _ in rows)
-    cash = 0.0
-    usd_rate = None
+    _rate_cache = {}
+    def _rate():
+        if "v" not in _rate_cache:
+            _rate_cache["v"] = _latest_usdkrw()
+        return _rate_cache["v"]
+    by_acct_cash: dict[int, list] = {}
     for c in cash_rows:
-        if c.currency == "USD":
-            if usd_rate is None:
-                usd_rate = _latest_usdkrw() or 0.0
-            cash += float(c.amount) * usd_rate
-        else:
-            cash += float(c.amount)
+        by_acct_cash.setdefault(c.account_id, []).append(c)
+    cash = sum(_effective_cash(rows_, _rate)[0] for rows_ in by_acct_cash.values())
     as_of = max((h.as_of for h, _ in rows), default=None)
 
     holdings = [{
@@ -196,16 +196,29 @@ def get_holdings() -> dict:
 
 
 def set_cash(amount: float, account_alias: str = "미래에셋(파일)") -> None:
-    """예수금 수기 입력 (FR-03-04). 계좌당 1행 유지."""
+    """예수금 수기 입력 (FR-03-04) — 수동값이 파일값보다 우선 (2026-07-14 정책)."""
     from backend.infra.schema import CashBalance
 
     account_id = _get_or_create_account(account_alias)
     with get_session() as s:
-        s.query(CashBalance).filter_by(account_id=account_id).delete()
+        s.query(CashBalance).filter_by(account_id=account_id, source="manual").delete()
         s.add(CashBalance(account_id=account_id, currency="KRW",
-                          amount=amount, as_of=datetime.now()))
+                          amount=amount, source="manual", as_of=datetime.now()))
         s.commit()
     save_snapshot()
+
+
+def _effective_cash(cash_rows, usd_rate_getter) -> tuple[float, str]:
+    """계좌의 유효 예수금(원화 환산): 수동 KRW가 있으면 파일 KRW 대체, USD는 파일값 환산."""
+    manual_krw = [c for c in cash_rows if c.source == "manual" and c.currency == "KRW"]
+    file_krw = [c for c in cash_rows if c.source == "file" and c.currency == "KRW"]
+    usd = [c for c in cash_rows if c.currency == "USD"]
+    krw = float(manual_krw[-1].amount) if manual_krw else sum(float(c.amount) for c in file_krw)
+    total = krw
+    for c in usd:
+        rate = usd_rate_getter()
+        total += float(c.amount) * (rate or 0.0)
+    return total, ("manual" if manual_krw else "file")
 
 
 def export_csv() -> str:
@@ -373,3 +386,86 @@ def reset_all() -> None:
             s.delete(row)
         s.commit()
     logger.warning("포트폴리오 전체 초기화 완료")
+
+
+# ── 화면 개선 (2026-07-14 시안 확정): 계좌별·분류별 뷰 ──
+
+def get_by_account() -> dict:
+    """계좌별 카드 데이터 — 종목·유효 예수금(수동 우선)·계좌 합계·비중."""
+    from backend.infra.schema import CashBalance
+
+    d = get_holdings()
+    with get_session() as s:
+        accounts = s.query(Account).all()
+        cash_all = s.query(CashBalance).all()
+
+    _rc = {}
+    def _rate():
+        if "v" not in _rc:
+            _rc["v"] = _latest_usdkrw()
+        return _rc["v"]
+
+    holdings_by_acct: dict[str, list] = {}
+    for h in d["holdings"]:
+        holdings_by_acct.setdefault(h["account"], []).append(h)
+
+    out = []
+    for acc in accounts:
+        hs = holdings_by_acct.get(acc.alias, [])
+        rows = [c for c in cash_all if c.account_id == acc.id]
+        cash, cash_source = _effective_cash(rows, _rate) if rows else (0.0, "file")
+        ev = sum(h["eval_amount"] for h in hs)
+        buy = sum(h["buy_amount"] for h in hs)
+        pnl = sum(h["pnl_amount"] for h in hs)
+        for h in hs:  # 계좌 내 비중
+            h["weight_in_account_pct"] = round(h["eval_amount"] / ev * 100, 2) if ev else 0.0
+        out.append({"name": acc.alias, "holdings": hs, "cash": round(cash, 2),
+                    "cash_source": cash_source,
+                    "eval_amount": ev, "buy_amount": buy, "pnl_amount": pnl,
+                    "pnl_pct": round(pnl / buy * 100, 2) if buy else 0.0,
+                    "total": round(ev + cash, 2)})
+    grand = sum(a["total"] for a in out) or 1
+    for a in out:
+        a["weight_pct"] = round(a["total"] / grand * 100, 2)
+    out.sort(key=lambda a: -a["total"])
+    return {"accounts": out, "totals": d["totals"], "as_of": d["as_of"]}
+
+
+GROUP_DIMS = {"type", "region", "sector"}
+
+
+def get_grouped(by: str) -> dict:
+    """분류별 뷰 (FR-03-22~23): type=주식·ETF / region=국내·해외 / sector=산업."""
+    if by not in GROUP_DIMS:
+        raise ValueError(f"by는 {GROUP_DIMS} 중 하나여야 합니다")
+    d = get_holdings()
+
+    def label_of(h) -> str:
+        if by == "type":
+            t = _classify_type(h["name"], h["market"])   # "국내 ETF" 등
+            return "ETF" if "ETF" in t else "개별주식"
+        if by == "region":
+            return "국내주식" if h["market"] == "KRX" else "해외주식"
+        return h.get("sector") or "미분류"
+
+    groups: dict[str, dict] = {}
+    for h in d["holdings"]:
+        g = groups.setdefault(label_of(h), {"holdings": [], "eval_amount": 0.0,
+                                            "buy_amount": 0.0, "pnl_amount": 0.0})
+        g["holdings"].append(h)
+        g["eval_amount"] += h["eval_amount"]
+        g["buy_amount"] += h["buy_amount"]
+        g["pnl_amount"] += h["pnl_amount"]
+
+    total_eval = sum(g["eval_amount"] for g in groups.values()) or 1
+    out = []
+    for label, g in groups.items():
+        g["holdings"].sort(key=lambda x: -x["eval_amount"])
+        out.append({"label": label, **g,
+                    "pnl_pct": round(g["pnl_amount"] / g["buy_amount"] * 100, 2)
+                               if g["buy_amount"] else 0.0,
+                    "weight_pct": round(g["eval_amount"] / total_eval * 100, 2),
+                    "count": len(g["holdings"]),
+                    "account_count": len({h["account"] for h in g["holdings"]})})
+    out.sort(key=lambda x: -x["eval_amount"])
+    return {"by": by, "groups": out, "totals": d["totals"], "as_of": d["as_of"]}

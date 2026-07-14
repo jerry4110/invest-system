@@ -15,16 +15,33 @@ const data = {
   as_of: new Date().toISOString(),
 };
 
+const byAccount = {
+  accounts: [{ name: "주식계좌 9325", holdings: data.holdings.map((h) => ({ ...h, weight_in_account_pct: 100 })),
+    cash: 1000000, cash_source: "manual", eval_amount: 7500000, buy_amount: 7000000,
+    pnl_amount: 500000, pnl_pct: 7.14, total: 8500000, weight_pct: 100 }],
+  totals: data.totals, as_of: data.as_of,
+};
+
 afterEach(cleanup);
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => data })) as unknown as typeof fetch);
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => ({
+    ok: true,
+    json: async () => (String(url).includes("by-account") ? byAccount
+      : String(url).includes("grouped") ? { by: "type", groups: [] }
+      : String(url).includes("analysis") || String(url).includes("returns") ? { by_type: [], by_sector: [], returns: [] }
+      : String(url).includes("trend") ? []
+      : data),
+  })) as unknown as typeof fetch);
 });
 
 describe("Portfolio", () => {
-  it("보유 종목·합계·기준시각을 표시한다", async () => {
+  it("계좌 카드·합계·기준시각을 표시한다 (2026-07-14 개선)", async () => {
     render(<Portfolio />);
-    await waitFor(() => expect(screen.getByText("삼성전자")).toBeTruthy());
-    expect(screen.getByText("8,500,000원")).toBeTruthy();   // 총자산 = 평가 + 예수금
-    expect(screen.getByText(/잔고 기준:/)).toBeTruthy();     // as_of 배지 (NFR-04)
+    await waitFor(() => expect(screen.getByText(/주식계좌 9325/)).toBeTruthy());
+    expect(screen.getByText("삼성전자")).toBeTruthy();            // 기본 첫 계좌 펼침
+    expect(screen.getAllByText(/8,500,000원/).length).toBeGreaterThan(0);  // 계좌 합계
+    expect(screen.getByText(/\(수동\)/)).toBeTruthy();            // 수동 예수금 표시
+    expect(screen.getByText(/잔고 기준:/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "산업별" })).toBeTruthy();   // 분류 탭
   });
 });

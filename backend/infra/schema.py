@@ -45,6 +45,7 @@ class CashBalance(Base):
     account_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
     currency: Mapped[str] = mapped_column(String(10), default="KRW")
     amount: Mapped[float] = mapped_column(Numeric(18, 2))
+    source: Mapped[str] = mapped_column(String(10), default="file")  # file | manual (수동 우선)
     as_of: Mapped[datetime] = mapped_column(DateTime)
 
 

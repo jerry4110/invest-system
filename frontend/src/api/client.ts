@@ -135,8 +135,8 @@ export const api = {
   getTrend: () =>
     req<{ date: string; total_asset: number }[]>("/api/portfolio/trend"),
   getHoldings: () => req<PortfolioData>("/api/portfolio/holdings"),
-  setCash: (amount: number) =>
-    req<{ ok: boolean }>("/api/portfolio/cash", { method: "PUT", body: JSON.stringify({ amount }) }),
+  setCash: (amount: number, account?: string) =>
+    req<{ ok: boolean }>("/api/portfolio/cash", { method: "PUT", body: JSON.stringify({ amount, account }) }),
   scanBalanceFolder: (force = false) =>
     req<{ imported: number; folder: string;
           files: { file: string; status: string; reason?: string; holdings?: number }[] }>(
