@@ -11,6 +11,8 @@ from backend.infra.schema import MarketIndicator
 ACC1 = """유형,종목번호,종목명,구분,보유량,평균단가,현재가,매입금액,평가금액,평가손익,수익률
 주식,A005930,삼성전자,현금,100,70000,75000,7000000,7500000,500000,7.14
 주식,A455850,SOL AI반도체소부장,현금,100,20000,25000,2000000,2500000,500000,25.0
+주식,A442580,PLUS 글로벌HBM반도체,현금,10,50000,100000,500000,1000000,500000,100.0
+주식,A0163Y0,ACE 미국우주테크액티브,현금,10,10000,20000,100000,200000,100000,100.0
 원화RP,CMARPC01,CMA RP_개인,현금,1000000,1,0,1000000,1000000,0,0
 """
 ACC2 = """유형,종목번호,종목명,구분,보유량,평균단가,현재가,매입금액,평가금액,평가손익,수익률
@@ -68,19 +70,21 @@ def test_manual_cash_overrides_file_on_reimport(client, tmp_path):
     assert accounts["주식계좌"]["cash"] == 5000000     # 여전히 수동값
 
 
-def test_grouped_views(client):
-    """분류 3종: 주식·ETF / 국내·해외 / 산업별 — 그룹 합계·비중."""
-    g = client.get("/api/portfolio/grouped?by=type").json()
+def test_grouped_invest_4groups(client):
+    """투자유형별 4그룹 (2026-07-14 통합): 국내개별 / 해외 / 해외투자 국내ETF / 국내투자 국내ETF."""
+    g = client.get("/api/portfolio/grouped?by=invest").json()
+    labels = [x["label"] for x in g["groups"]]
+    assert labels == ["국내 개별주식", "해외 개별주식·ETF",
+                      "해외투자 국내 ETF", "국내투자 국내 ETF"]   # 고정 순서
     by = {x["label"]: x for x in g["groups"]}
-    assert by["개별주식"]["eval_amount"] == 7500000 + 1500000   # 삼전 + NVDA(환산)
-    assert by["ETF"]["eval_amount"] == 2500000
+    assert by["국내 개별주식"]["eval_amount"] == 7500000            # 삼성전자
+    assert by["해외 개별주식·ETF"]["eval_amount"] == 1500000        # NVDA(환산)
+    # 글로벌·미국 키워드 → 해외투자 국내 ETF
+    assert by["해외투자 국내 ETF"]["eval_amount"] == 1000000 + 200000
+    assert by["국내투자 국내 ETF"]["eval_amount"] == 2500000        # SOL AI반도체소부장
     assert all(h.get("account") for x in g["groups"] for h in x["holdings"])
 
-    g2 = client.get("/api/portfolio/grouped?by=region").json()
-    by2 = {x["label"]: x["eval_amount"] for x in g2["groups"]}
-    assert by2["국내주식"] == 10000000 and by2["해외주식"] == 1500000
-
     g3 = client.get("/api/portfolio/grouped?by=sector").json()
-    labels = {x["label"] for x in g3["groups"]}
-    assert "반도체" in labels                            # 종목명 키워드 추론 (카테고리 컬럼 없음)
+    assert "반도체" in {x["label"] for x in g3["groups"]}
+    assert client.get("/api/portfolio/grouped?by=type").status_code == 422   # 폐지
     assert client.get("/api/portfolio/grouped?by=bad").status_code == 422
