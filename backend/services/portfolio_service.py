@@ -297,16 +297,11 @@ def get_summary() -> dict:
 
 # ── T-29: 분류·기간 수익률·추이 (FR-03-21~28) ──
 
-ETF_BRANDS = ("KODEX", "TIGER", "ACE", "SOL", "PLUS", "RISE", "KBSTAR", "HANARO",
-              "ARIRANG", "KOSEF", "TIMEFOLIO", "TIME ", "히어로즈", "WOORI", "BNK")
-
-
 def _classify_type(name: str, market: str) -> str:
-    """FR-03-22: 투자유형 — ETF(브랜드명 휴리스틱) × 국내/해외."""
-    upper = name.upper()
-    is_etf = any(b in upper for b in ETF_BRANDS) or "ETF" in upper
+    """FR-03-22: 투자유형 — ETF(브랜드 규칙: domain/invest_rules) × 국내/해외."""
+    from backend.domain.invest_rules import is_etf
     region = "국내" if market == "KRX" else "해외"
-    return f"{region} {'ETF' if is_etf else '주식'}"
+    return f"{region} {'ETF' if is_etf(name) else '주식'}"
 
 
 def get_analysis() -> dict:
@@ -433,23 +428,18 @@ def get_by_account() -> dict:
 
 GROUP_DIMS = {"invest", "sector"}
 
-# 해외투자 국내 ETF 판별 키워드 (2026-07-14 사용자 정의)
-_OVERSEAS_THEME_KEYWORDS = ("글로벌", "차이나", "미국", "금현물", "금채권")
-
 INVEST_GROUP_ORDER = ["국내 개별주식", "해외 개별주식·ETF",
                       "해외투자 국내 ETF", "국내투자 국내 ETF"]
 
 
 def _classify_invest(h) -> str:
-    """투자유형 4분류: ①국내 개별 ②해외(전부) ③해외투자 국내ETF ④국내투자 국내ETF."""
+    """투자유형 4분류 — 규칙은 domain/invest_rules.py에서 관리 (재스캔 무관 유지)."""
+    from backend.domain.invest_rules import classify_domestic_etf, is_etf
     if h["market"] != "KRX":
         return "해외 개별주식·ETF"
-    t = _classify_type(h["name"], h["market"])
-    if "ETF" not in t:
+    if not is_etf(h["name"]):
         return "국내 개별주식"
-    if any(k in h["name"] for k in _OVERSEAS_THEME_KEYWORDS):
-        return "해외투자 국내 ETF"
-    return "국내투자 국내 ETF"
+    return classify_domestic_etf(h["name"])
 
 
 def get_grouped(by: str) -> dict:
