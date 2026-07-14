@@ -18,6 +18,7 @@ class TradeDTO:
     qty: Decimal
     price: Decimal
     fee: Decimal
+    fixed_pnl: Decimal | None = None   # 증권사 계산 손익 (있으면 재계산 대신 사용)
 
 
 TRADE_HEADERS = {
@@ -34,8 +35,42 @@ BUY_WORDS = ("매수", "buy", "매입")
 SELL_WORDS = ("매도", "sell")
 
 
+def _parse_aggregate_format(df) -> list[TradeDTO] | None:
+    """미래에셋 '기간 중 매매' 집계 형식 (2026-07-15 실파일): 2행 헤더, 매수/매도 병렬.
+
+    컬럼: 일자,종목명,[매수]수량,평균단가,매수금액,[매도]수량,평균단가,매도금액,매매비용,손익금액,수익률
+    """
+    row0 = [str(c).strip() if not pd.isna(c) else "" for c in df.iloc[0]]
+    if "기간 중 매수" not in row0 or "기간 중 매도" not in row0:
+        return None
+    trades = []
+    for _, row in df.iloc[2:].iterrows():
+        raw_d = row.iloc[0]
+        name = str(row.iloc[1]).strip() if not pd.isna(row.iloc[1]) else ""
+        if pd.isna(raw_d) or not name or name == "nan":
+            continue
+        executed = pd.to_datetime(str(raw_d).replace("/", "-")).to_pydatetime()
+        buy_qty = _clean_number(row.iloc[2])
+        sell_qty = _clean_number(row.iloc[5])
+        fee = _clean_number(row.iloc[8]) if len(row) > 8 else Decimal(0)
+        pnl = _clean_number(row.iloc[9]) if len(row) > 9 else Decimal(0)
+        if buy_qty > 0:
+            trades.append(TradeDTO(executed_at=executed, ticker=name, name=name,
+                                   side="buy", qty=buy_qty,
+                                   price=_clean_number(row.iloc[3]), fee=Decimal(0)))
+        if sell_qty > 0:
+            trades.append(TradeDTO(executed_at=executed, ticker=name, name=name,
+                                   side="sell", qty=sell_qty,
+                                   price=_clean_number(row.iloc[6]), fee=fee,
+                                   fixed_pnl=pnl))
+    return trades if trades else None
+
+
 def parse_trades_file(path: str | Path) -> list[TradeDTO]:
     df = _read_raw(Path(path))
+    agg = _parse_aggregate_format(df)
+    if agg is not None:
+        return sorted(agg, key=lambda t: t.executed_at)
     header_row, col = None, {}
     for i in range(min(len(df), 20)):
         row = [str(c).strip() if not pd.isna(c) else "" for c in df.iloc[i]]

@@ -69,7 +69,7 @@ export interface JobLogItem {
 
 export interface JournalTx {
   id: number; ticker: string; side: "buy" | "sell"; qty: number; price: number;
-  executed_at: string; realized_pnl: number | null; note: string;
+  amount: number; executed_at: string; realized_pnl: number | null; note: string;
 }
 
 export interface JournalStats {

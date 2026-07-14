@@ -26,9 +26,14 @@ def import_trades_file(path, account_alias: str = "미래에셋(파일)") -> int
                    .first())
             if dup:
                 continue
+            meta = []
+            if t.fee:
+                meta.append(f"수수료:{t.fee}")
+            if getattr(t, "fixed_pnl", None) is not None:
+                meta.append(f"손익고정:{t.fixed_pnl}")
             s.add(Transaction(account_id=account_id, ticker=t.ticker, side=t.side,
                               qty=t.qty, price=t.price, executed_at=t.executed_at,
-                              note=f"수수료:{t.fee}" if t.fee else ""))
+                              note=" ".join(meta)))
             imported += 1
         s.commit()
     recompute_realized_pnl()
@@ -45,7 +50,8 @@ def recompute_realized_pnl() -> None:
         txs = s.query(Transaction).order_by(Transaction.executed_at, Transaction.id).all()
         pos: dict[str, dict] = defaultdict(lambda: {"qty": Decimal(0), "avg": Decimal(0)})
         for t in txs:
-            fee = Decimal(t.note.split("수수료:")[1]) if "수수료:" in (t.note or "") else Decimal(0)
+            fee = (Decimal(t.note.split("수수료:")[1].split()[0])
+                   if "수수료:" in (t.note or "") else Decimal(0))
             qty, price = Decimal(str(t.qty)), Decimal(str(t.price))
             p = pos[t.ticker]
             if t.side == "buy":
@@ -54,7 +60,13 @@ def recompute_realized_pnl() -> None:
                 p["avg"] = total_cost / p["qty"] if p["qty"] else Decimal(0)
                 t.realized_pnl = None
             else:
-                if p["qty"] < qty:
+                fixed = None
+                if "손익고정:" in (t.note or ""):
+                    fixed = Decimal(t.note.split("손익고정:")[1].split()[0])
+                if fixed is not None:                       # 증권사 계산 손익 우선 (2026-07-15)
+                    t.realized_pnl = float(fixed)
+                    p["qty"] = max(p["qty"] - qty, Decimal(0))
+                elif p["qty"] < qty:
                     logger.warning("초과 매도 감지(원가 불명): %s %s주 — 실현손익 보류",
                                    t.ticker, qty)
                     t.realized_pnl = None
@@ -64,16 +76,41 @@ def recompute_realized_pnl() -> None:
         s.commit()
 
 
-def list_transactions() -> list[dict]:
+def _strip_meta(note: str) -> str:
+    out = note or ""
+    for key in ("수수료:", "손익고정:"):
+        if key in out:
+            out = out.split(key)[0]
+    return out.strip()
+
+
+def list_transactions(date_from: str | None = None, date_to: str | None = None) -> list[dict]:
+    from datetime import datetime as _dt
     with get_session() as s:
-        txs = s.query(Transaction).order_by(Transaction.executed_at.desc()).all()
+        q = s.query(Transaction)
+        if date_from:
+            q = q.filter(Transaction.executed_at >= _dt.fromisoformat(date_from))
+        if date_to:
+            q = q.filter(Transaction.executed_at <= _dt.fromisoformat(date_to + "T23:59:59"))
+        txs = q.order_by(Transaction.executed_at.desc()).all()
     return [{
         "id": t.id, "ticker": t.ticker, "side": t.side, "qty": float(t.qty),
-        "price": float(t.price), "executed_at": t.executed_at.isoformat(timespec="seconds"),
+        "price": float(t.price),
+        "amount": round(float(t.qty) * float(t.price), 2),   # 금액 = 수량×단가 (2026-07-15)
+        "executed_at": t.executed_at.isoformat(timespec="seconds"),
         "realized_pnl": t.realized_pnl,
-        "note": (t.note or "").split("수수료:")[0].strip() or
-                ("" if "수수료:" not in (t.note or "") else ""),
+        "note": _strip_meta(t.note),
     } for t in txs]
+
+
+def delete_transactions(ids: list[int]) -> int:
+    """체크 선택 삭제 → 실현손익 재계산."""
+    with get_session() as s:
+        n = (s.query(Transaction).filter(Transaction.id.in_(ids))
+             .delete(synchronize_session=False))
+        s.commit()
+    recompute_realized_pnl()
+    return n
 
 
 def set_note(tx_id: int, note: str) -> None:
@@ -87,12 +124,17 @@ def set_note(tx_id: int, note: str) -> None:
         s.commit()
 
 
-def get_stats() -> dict:
-    """FR-06-05: 승률·손익비·월별 실현손익."""
+def get_stats(date_from: str | None = None, date_to: str | None = None) -> dict:
+    """FR-06-05: 승률·손익비·월별 실현손익 (기간 필터 지원, 2026-07-15)."""
+    from datetime import datetime as _dt
     with get_session() as s:
-        sells = (s.query(Transaction)
-                 .filter(Transaction.side == "sell", Transaction.realized_pnl.isnot(None))
-                 .all())
+        q = (s.query(Transaction)
+             .filter(Transaction.side == "sell", Transaction.realized_pnl.isnot(None)))
+        if date_from:
+            q = q.filter(Transaction.executed_at >= _dt.fromisoformat(date_from))
+        if date_to:
+            q = q.filter(Transaction.executed_at <= _dt.fromisoformat(date_to + "T23:59:59"))
+        sells = q.all()
     wins = [t.realized_pnl for t in sells if t.realized_pnl > 0]
     losses = [-t.realized_pnl for t in sells if t.realized_pnl < 0]
     monthly: dict[str, float] = defaultdict(float)

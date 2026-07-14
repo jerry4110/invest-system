@@ -29,9 +29,19 @@ async def upload_trades(file: UploadFile):
         Path(tmp_path).unlink(missing_ok=True)
 
 
+class DeleteBody(BaseModel):
+    ids: list[int]
+
+
 @router.get("/transactions")
-def transactions():
-    return svc.list_transactions()
+def transactions(date_from: str | None = None, date_to: str | None = None):
+    return svc.list_transactions(date_from, date_to)
+
+
+@router.delete("/transactions")
+def delete_transactions(body: DeleteBody):
+    """체크 선택 삭제."""
+    return {"deleted": svc.delete_transactions(body.ids)}
 
 
 @router.put("/transactions/{tx_id}/note")
@@ -41,5 +51,5 @@ def put_note(tx_id: int, body: NoteBody):
 
 
 @router.get("/stats")
-def stats():
-    return svc.get_stats()
+def stats(date_from: str | None = None, date_to: str | None = None):
+    return svc.get_stats(date_from, date_to)
