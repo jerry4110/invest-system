@@ -431,7 +431,25 @@ def get_by_account() -> dict:
     return {"accounts": out, "totals": d["totals"], "as_of": d["as_of"]}
 
 
-GROUP_DIMS = {"type", "region", "sector"}
+GROUP_DIMS = {"invest", "sector"}
+
+# 해외투자 국내 ETF 판별 키워드 (2026-07-14 사용자 정의)
+_OVERSEAS_THEME_KEYWORDS = ("글로벌", "차이나", "미국", "금현물", "금채권")
+
+INVEST_GROUP_ORDER = ["국내 개별주식", "해외 개별주식·ETF",
+                      "해외투자 국내 ETF", "국내투자 국내 ETF"]
+
+
+def _classify_invest(h) -> str:
+    """투자유형 4분류: ①국내 개별 ②해외(전부) ③해외투자 국내ETF ④국내투자 국내ETF."""
+    if h["market"] != "KRX":
+        return "해외 개별주식·ETF"
+    t = _classify_type(h["name"], h["market"])
+    if "ETF" not in t:
+        return "국내 개별주식"
+    if any(k in h["name"] for k in _OVERSEAS_THEME_KEYWORDS):
+        return "해외투자 국내 ETF"
+    return "국내투자 국내 ETF"
 
 
 def get_grouped(by: str) -> dict:
@@ -441,11 +459,8 @@ def get_grouped(by: str) -> dict:
     d = get_holdings()
 
     def label_of(h) -> str:
-        if by == "type":
-            t = _classify_type(h["name"], h["market"])   # "국내 ETF" 등
-            return "ETF" if "ETF" in t else "개별주식"
-        if by == "region":
-            return "국내주식" if h["market"] == "KRX" else "해외주식"
+        if by == "invest":
+            return _classify_invest(h)
         return h.get("sector") or "미분류"
 
     groups: dict[str, dict] = {}
@@ -467,5 +482,9 @@ def get_grouped(by: str) -> dict:
                     "weight_pct": round(g["eval_amount"] / total_eval * 100, 2),
                     "count": len(g["holdings"]),
                     "account_count": len({h["account"] for h in g["holdings"]})})
-    out.sort(key=lambda x: -x["eval_amount"])
+    if by == "invest":  # 사용자 정의 고정 순서
+        out.sort(key=lambda x: INVEST_GROUP_ORDER.index(x["label"])
+                 if x["label"] in INVEST_GROUP_ORDER else 99)
+    else:
+        out.sort(key=lambda x: -x["eval_amount"])
     return {"by": by, "groups": out, "totals": d["totals"], "as_of": d["as_of"]}

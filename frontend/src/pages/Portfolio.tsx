@@ -29,10 +29,9 @@ interface Grouped {
             count: number; account_count: number }[];
 }
 
-type View = "account" | "type" | "region" | "sector" | "analysis";
+type View = "account" | "invest" | "sector" | "analysis";
 const VIEWS: [View, string][] = [
-  ["account", "계좌별"], ["type", "주식·ETF별"], ["region", "국내·해외별"],
-  ["sector", "산업별"], ["analysis", "분석"],
+  ["account", "계좌별"], ["invest", "투자유형별"], ["sector", "산업별"], ["analysis", "분석"],
 ];
 
 export default function Portfolio() {
@@ -62,7 +61,7 @@ export default function Portfolio() {
   useEffect(load, [load]);
 
   useEffect(() => {
-    if (view === "type" || view === "region" || view === "sector") {
+    if (view === "invest" || view === "sector") {
       fetch(`/api/portfolio/grouped?by=${view}`).then((r) => r.json()).then(setGrouped).catch(() => {});
     }
   }, [view, data]);
@@ -193,7 +192,7 @@ export default function Portfolio() {
         </div>
       ))}
 
-      {(view === "type" || view === "region" || view === "sector") && grouped && grouped.by === view &&
+      {(view === "invest" || view === "sector") && grouped && grouped.by === view &&
         grouped.groups.map((g) => (
           <div key={g.label} style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: "10px 14px", marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>

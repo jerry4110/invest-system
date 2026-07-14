@@ -43,10 +43,10 @@ def test_by_account_view(client):
     body = client.get("/api/portfolio/by-account").json()
     accounts = {a["name"]: a for a in body["accounts"]}
     a1 = accounts["주식계좌"]
-    assert len(a1["holdings"]) == 2
+    assert len(a1["holdings"]) == 4
     assert a1["cash"] == 1000000                       # 파일 RP
-    assert a1["total"] == 10000000 + 1000000           # 평가 1,000만 + 예수금
-    assert a1["pnl_amount"] == 1000000
+    assert a1["total"] == 11200000 + 1000000           # 평가 1,120만 + 예수금
+    assert a1["pnl_amount"] == 1600000
     a2 = accounts["연금계좌"]
     assert a2["holdings"][0]["eval_amount"] == 1500 * 1000   # USD 환산
     # 비중 합 = 100
