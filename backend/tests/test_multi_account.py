@@ -67,6 +67,13 @@ def test_import_converts_usd_and_cash(fresh):
     assert totals["cash"] == pytest.approx(34405 + 13056.23 * 1400, rel=1e-4)
 
 
+def test_irp_format_market_is_krx(fresh):
+    """종목코드 없는 IRP 포맷: 한글 종목명 → 국내(KRX)로 분류 (해외 오분류 방지)."""
+    from backend.adapters.broker.file_upload import parse_balance_file
+    holdings = parse_balance_file(_w(fresh, "IRP계좌.csv", FORMAT_A_IRP))
+    assert all(h.market == "KRX" for h in holdings if not h.market.startswith("CASH"))
+
+
 def test_format_a_irp_without_price_columns(fresh):
     """IRP 포맷: 단가·현재가 없음 → 계산 보완, 현금성자산 행 → 예수금."""
     from backend.services import portfolio_service

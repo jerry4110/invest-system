@@ -110,6 +110,8 @@ def _classify_market(ticker: str, region: str) -> str:
         return "KRX"   # 0091P0 같은 우선주·ETF 코드
     if region:
         return "KRX" if region == "국내" else "OVERSEAS"
+    if any("가" <= c <= "힣" for c in ticker):
+        return "KRX"   # 코드 없는 파일(IRP 등): 한글 상품명 = 국내 상장 (2026-07-14 실파일)
     return "OVERSEAS" if ticker.isalpha() else "UNKNOWN"
 
 
@@ -169,7 +171,7 @@ def parse_balance_file(path: str | Path, mapping: dict[str, str] | None = None) 
         elif asset_type == "주식":
             market = "KRX"
         else:
-            market = _classify_market(ticker, region)
+            market = _classify_market(ticker or name, region)
         holdings.append(HoldingDTO(name=name, ticker=ticker or name, qty=qty,
                                    avg_price=avg, buy_amount=buy, cur_price=cur,
                                    eval_amount=ev, pnl_amount=pnl, pnl_pct=pct,
